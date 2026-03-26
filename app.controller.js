@@ -909,20 +909,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createPcbBoard() {
-        // PCB 基板尺寸 (映射我们的 2D 坐标系，居中放置)
         const boardWidth = 900;
         const boardHeight = 700;
-        const boardThickness = 16; // 1.6mm 板厚放大映射
+        const boardThickness = 16; 
+        const cornerRadius = 20; // 严格映射 2D 的倒角半径
+
+        const shape = new THREE.Shape();
+
+        // 1. 绘制带有倒角的外框轮廓 (以坐标系中心进行绝对对称映射)
+        const x = -boardWidth / 2;
+        const y = -boardHeight / 2;
+        shape.moveTo(x + cornerRadius, y);
+        shape.lineTo(x + boardWidth - cornerRadius, y);
+        shape.quadraticCurveTo(x + boardWidth, y, x + boardWidth, y + cornerRadius);
+        shape.lineTo(x + boardWidth, y + boardHeight - cornerRadius);
+        shape.quadraticCurveTo(x + boardWidth, y + boardHeight, x + boardWidth - cornerRadius, y + boardHeight);
+        shape.lineTo(x + cornerRadius, y + boardHeight);
+        shape.quadraticCurveTo(x, y + boardHeight, x, y + boardHeight - cornerRadius);
+        shape.lineTo(x, y + cornerRadius);
+        shape.quadraticCurveTo(x, y, x + cornerRadius, y);
+
+        // 2. 挖掘 4 个物理通孔 (严格映射 2D 坐标)
+        const holeCoords = [
+            { x: -400, y: 300 },  // 左上 (对应 2D 的 cx=100, cy=100)
+            { x: 400, y: 300 },   // 右上
+            { x: -400, y: -300 }, // 左下
+            { x: 400, y: -300 }   // 右下
+        ];
+
+        holeCoords.forEach(coord => {
+            const hole = new THREE.Path();
+            hole.absarc(coord.x, coord.y, 16, 0, Math.PI * 2, false); // 半径与 2D 一致
+            shape.holes.push(hole); // 在 Shape 中打孔
+        });
+
+        // 3. 沿 Z 轴挤压成 3D 实体
+        const extrudeSettings = {
+            depth: boardThickness,
+            bevelEnabled: false // 关闭额外倒角，以保证板面 Z=8 坐标的绝对精确
+        };
+        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
         
-        // 创建几何体与材质
-        const geometry = new THREE.BoxGeometry(boardWidth, boardHeight, boardThickness);
+        // 【关键】Extrude 默认从 Z=0 往正方向挤压 16。我们将其后移一半，
+        // 让板子完美跨越 Z(-8) 到 Z(8)，完美承接后续元器件和走线的贴片高度！
+        geometry.translate(0, 0, -boardThickness / 2);
+
+        // 4. 赋予经典工业绿油材质
         const material = new THREE.MeshPhongMaterial({ 
-            color: '#0f172a', // 深色阻焊层
-            shininess: 30 
+            color: '#166534', 
+            shininess: 40
         });
         
         const board = new THREE.Mesh(geometry, material);
-        board.position.set(0, 0, 0);
         board.receiveShadow = true;
         board.castShadow = true;
         scene.add(board);
