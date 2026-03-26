@@ -865,6 +865,42 @@ document.addEventListener('DOMContentLoaded', () => {
         // 绑定观察者到 3D 容器
         resizeObserver.observe(view3dContainer);
 
+        // ============ 8. 3D 交互引擎 (Raycaster) ============
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        renderer.domElement.addEventListener('click', (event) => {
+            if (!isSplitViewActive) return;
+
+            // 获取 3D 画布在屏幕上的绝对包围盒
+            const rect = renderer.domElement.getBoundingClientRect();
+            
+            // 将鼠标屏幕坐标转换为 Three.js 的归一化设备坐标 (NDC: -1 到 +1)
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            // 从摄像机位置穿过鼠标点击位置发射射线
+            raycaster.setFromCamera(mouse, camera);
+
+            // 计算射线与场景中所有物体的交点
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            if (intersects.length > 0) {
+                // 筛选出被击中的、并且我们在 createComponents 中埋入了 ref 数据的器件实体
+                const target = intersects.find(intersect => intersect.object.userData && intersect.object.userData.ref);
+                
+                if (target) {
+                    const ref = target.object.userData.ref;
+                    
+                    // 【核心联动】调用我们在 2D 环境下早已写好的全局器件选中函数！
+                    // 这将自动触发：2D 图纸高亮 + 居中 + 右下角属性面板弹出
+                    if (typeof selectComponent === 'function') {
+                        selectComponent(ref);
+                    }
+                }
+            }
+        });
+
         isThreeInitialized = true;
     }
 
