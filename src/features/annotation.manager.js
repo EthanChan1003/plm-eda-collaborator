@@ -41,6 +41,16 @@ export function initAnnotationManager() {
     bus.on('VIEW_CHANGED', (viewType) => {
         currentDrawingType = viewType;
     });
+    
+    // 监听工具模式变化
+    bus.on('TOOL_MODE_CHANGED', (mode) => {
+        // 如果不是批注模式，取消正在进行的绘制
+        if (mode !== 'ANNOTATE' && isDrawing && currentAnnotationBox) {
+            currentAnnotationBox.remove();
+            currentAnnotationBox = null;
+            isDrawing = false;
+        }
+    });
 
     // 绑定绘图事件
     bindDrawingEvents();
@@ -231,6 +241,9 @@ function saveAnnotation(annotationBox, text) {
 
     // 通知控制器更新批注列表
     bus.emit('ANNOTATION_SAVED', annotationData);
+    
+    // 触发反应式更新
+    bus.emit('ANNOTATIONS_UPDATED', annotations);
 }
 
 /**
@@ -461,6 +474,9 @@ window.deleteAnnotation = function(id, version) {
     });
     
     bus.emit('ANNOTATION_DELETED', { id, version: targetVersion });
+    
+    // 触发反应式更新
+    bus.emit('ANNOTATIONS_UPDATED', annotations);
 };
 
 /**

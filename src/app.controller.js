@@ -17,7 +17,6 @@ let currentToolMode = ToolMode.SELECT;
 // 1. 恢复之前 config.data.js 中被删掉的动态数据变量
 let mockComponentData = { ...versionedComponentData[AppState.currentVersion] };
 let mockDiffData = {};
-let annotations = [];
 
 // 2. 恢复之前 config.data.js 中被删掉的辅助函数
 function getCurrentComponentData() {
@@ -31,14 +30,6 @@ function calculateVersionDiff(currentVersion, compareVersion) {
     }
     mockDiffData = {};
     return false;
-}
-function getNextAnnotationId(version) {
-    const versionAnnotations = annotations.filter(a => a.version === version);
-    if (versionAnnotations.length === 0) return 1;
-    return Math.max(...versionAnnotations.map(a => a.id)) + 1;
-}
-function initPresetAnnotations() {
-    if (annotations.length === 0) annotations = [...presetAnnotations];
 }
 
 // ============ 原有业务逻辑向下顺延 ============
@@ -59,12 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvasTransform = document.getElementById('canvas-transform');
     const canvasSchematic = document.getElementById('canvas-schematic');
     const canvasPcb = document.getElementById('canvas-pcb');
-
-    // 获取批注容器（在各自画布内部）
-    function getAnnotationContainer(viewType) {
-        const canvas = viewType === 'schematic' ? canvasSchematic : canvasPcb;
-        return canvas?.querySelector('.annotations-container');
-    }
 
     const btnSchematic = document.getElementById('btn-schematic');
     const btnPcb = document.getElementById('btn-pcb');
@@ -340,8 +325,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 工具模式切换 ============
     function setToolMode(mode) {
-        // 同步到局部变量
+        // 同步到局部变量和全局状态
         currentToolMode = mode;
+        AppState.currentToolMode = mode;
+        
+        // 同步到 canvasWrapper dataset 供批注管理器读取
+        if (canvasWrapper) {
+            canvasWrapper.dataset.toolMode = mode;
+        }
         
         // 重置所有工具按钮状态
         toolSelect.classList.remove('tool-active');
@@ -366,6 +357,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
         }
     }
+    
+    // 监听工具模式变化事件
+    bus.on('TOOL_MODE_CHANGED', (mode) => {
+        setToolMode(mode);
+    });
 
     // ============ 批注工具下拉菜单交互 ============
     const annotationMainBtn = document.getElementById('annotation-main-btn');
@@ -392,11 +388,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 工具按钮事件绑定
-    if (toolSelect) toolSelect.addEventListener('click', () => setToolMode(ToolMode.SELECT));
-    if (toolPan) toolPan.addEventListener('click', () => setToolMode(ToolMode.PAN));
+    // 工具模式切换 - 通过 EventBus 解耦
+    if (toolSelect) toolSelect.addEventListener('click', () => bus.emit('TOOL_MODE_CHANGED', ToolMode.SELECT));
+    if (toolPan) toolPan.addEventListener('click', () => bus.emit('TOOL_MODE_CHANGED', ToolMode.PAN));
     if (toolRect) {
         toolRect.addEventListener('click', () => {
-            setToolMode(ToolMode.ANNOTATE);
+            bus.emit('TOOL_MODE_CHANGED', ToolMode.ANNOTATE);
             // 点击具体工具后关闭下拉菜单
             if (annotationSubMenu) {
                 annotationSubMenu.classList.add('hidden');
