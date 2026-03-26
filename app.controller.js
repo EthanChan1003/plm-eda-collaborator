@@ -990,33 +990,36 @@ document.addEventListener('DOMContentLoaded', () => {
     btnPcb.addEventListener('click', switchToPcb);
 
     // ============ 版本选择框联动 ============
-    const versionSelects = document.querySelectorAll('#panel-top-diff select');
-    if (versionSelects.length >= 2) {
-        // 基准版本选择框
-        versionSelects[0].addEventListener('change', (e) => {
-            const baseVersion = e.target.value.split(' ')[0];
-            const compareVersion = versionSelects[1].value;
-            if (baseVersion && compareVersion && compareVersion !== '请选择版本') {
-                const versionKey = `${baseVersion}->${compareVersion}`;
-                if (switchVersionDiff(versionKey)) {
-                    renderDiffContent();
-                    applyDiffHighlight();
-                }
-            }
-        });
+    const versionBaseSelect = document.getElementById('version-base');
+    const versionCompareSelect = document.getElementById('version-compare');
 
-        // 对比版本选择框
-        versionSelects[1].addEventListener('change', (e) => {
-            const compareVersion = e.target.value;
-            const baseVersion = versionSelects[0].value.split(' ')[0];
-            if (compareVersion && compareVersion !== '请选择版本') {
-                const versionKey = `${baseVersion}->${compareVersion}`;
-                if (switchVersionDiff(versionKey)) {
-                    renderDiffContent();
-                    applyDiffHighlight();
-                }
-            }
-        });
+    function handleVersionChange() {
+        const baseVersion = versionBaseSelect.value;
+        const compareVersion = versionCompareSelect.value;
+
+        // 确保基准版本 < 对比版本，否则交换
+        const baseNum = parseFloat(baseVersion.replace('V', ''));
+        const compareNum = parseFloat(compareVersion.replace('V', ''));
+
+        let versionKey;
+        if (baseNum < compareNum) {
+            versionKey = `${baseVersion}->${compareVersion}`;
+        } else {
+            versionKey = `${compareVersion}->${baseVersion}`;
+        }
+
+        if (switchVersionDiff(versionKey)) {
+            renderDiffContent();
+            applyDiffHighlight();
+        }
+    }
+
+    if (versionBaseSelect && versionCompareSelect) {
+        versionBaseSelect.addEventListener('change', handleVersionChange);
+        versionCompareSelect.addEventListener('change', handleVersionChange);
+
+        // 初始化同步：根据当前下拉框默认值自动渲染
+        handleVersionChange();
     }
 
     // ============ 初始化预置批注 ============

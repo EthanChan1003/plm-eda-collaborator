@@ -126,6 +126,14 @@ const mockComponentData = {
         ItemNumber: 'CONN-PH-4P-601445',
         Description: 'JST PH Series 4-Pin Connector 2.0mm Pitch, SWD调试接口',
         Status: '提交'
+    },
+    'C4': {
+        RefDes: 'C4',
+        PartNumber: 'CC0603KRX7R9BB104',
+        Footprint: '0603',
+        ItemNumber: 'CAP-MLCC-100N-302201',
+        Description: 'Ceramic Capacitor 100nF 50V X7R 0603 SMD, J1接口滤波',
+        Status: '提交'
     }
 };
 

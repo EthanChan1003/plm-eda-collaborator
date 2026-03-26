@@ -67,19 +67,16 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div class="space-y-1">
                         <label class="block text-[10px] font-bold text-gray-400 uppercase">基准版本</label>
-                        <select class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            <option>V2.0 (当前)</option>
-                            <option>V1.9</option>
-                            <option>V1.8</option>
+                        <select id="version-base" class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="V1.0">V1.0</option>
+                            <option value="V2.0" selected>V2.0</option>
                         </select>
                     </div>
                     <div class="space-y-1">
                         <label class="block text-[10px] font-bold text-gray-400 uppercase">对比版本</label>
-                        <select class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            <option disabled selected>请选择版本</option>
-                            <option>V1.9</option>
-                            <option>V1.8</option>
-                            <option>V1.0</option>
+                        <select id="version-compare" class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="V2.0" selected>V2.0</option>
+                            <option value="V2.1">V2.1</option>
                         </select>
                     </div>
                 </div>
@@ -345,6 +342,15 @@
                                 <line class="diff-arrow" x1="845" y1="320" x2="835" y2="320" stroke="#F59E0B" stroke-width="2" />
                             </g>
 
+                            <!-- ========== C4 电容 (J1 旁滤波) ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="C4" data-type="C">
+                                <line x1="180" y1="580" x2="180" y2="610" stroke="#1f2937" stroke-width="2.5" />
+                                <line x1="195" y1="580" x2="195" y2="610" stroke="#1f2937" stroke-width="2.5" />
+                                <text x="187" y="575" font-size="9" font-weight="bold" text-anchor="middle" fill="#1f2937">C4</text>
+                                <text x="187" y="625" font-size="7" text-anchor="middle" fill="#6b7280">100nF</text>
+                                <line x1="180" y1="595" x2="160" y2="595" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
                             <!-- ========== J1 排针接口 ========== -->
                             <g class="eda-component cursor-pointer" data-ref="J1" data-type="J">
                                 <rect x="80" y="580" width="60" height="100" fill="white" stroke="#1f2937" stroke-width="2" />
@@ -569,6 +575,14 @@
                                 </g>
                                 <!-- 位移箭头：从旧位置指向新位置 -->
                                 <line class="diff-arrow" x1="855" y1="317" x2="845" y2="317" stroke="#F59E0B" stroke-width="2" marker-end="url(#arrowhead-pcb)" />
+                            </g>
+
+                            <!-- ========== C4 0603 (J1 旁滤波) ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="C4" data-type="Footprint">
+                                <rect x="170" y="600" width="25" height="12" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="182" y="595" font-size="8" font-weight="bold" text-anchor="middle" fill="#94a3b8">C4</text>
+                                <rect x="160" y="603" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                                <rect x="195" y="603" width="10" height="6" fill="#e2e8f0" rx="0.5" />
                             </g>
 
                             <!-- ========== J1 排针 4P ========== -->
