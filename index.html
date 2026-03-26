@@ -734,6 +734,14 @@
             <div><strong>已解决 (Resolved)：</strong> <span id="report-resolved" class="text-green-600">0</span></div>
         </div>
 
+        <!-- 画布全景快照 -->
+        <div class="mb-8 border border-gray-200 rounded-lg p-2 bg-gray-50">
+            <h2 class="text-sm font-semibold text-gray-700 mb-2">当前视图快照 (<span id="report-view-type"></span>)</h2>
+            <div id="report-snapshot-container" class="w-full h-[80mm] flex items-center justify-center overflow-hidden bg-white rounded border border-gray-100">
+                <img id="report-snapshot-img" class="max-w-full max-h-full object-contain" />
+            </div>
+        </div>
+
         <table class="w-full text-left border-collapse">
             <thead>
                 <tr class="bg-gray-100 border-b-2 border-gray-300 text-sm">
