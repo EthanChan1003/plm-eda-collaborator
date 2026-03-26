@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvasTransform = document.getElementById('canvas-transform');
     const canvasSchematic = document.getElementById('canvas-schematic');
     const canvasPcb = document.getElementById('canvas-pcb');
+    const annotationLayer = document.getElementById('annotation-layer');
 
     const btnSchematic = document.getElementById('btn-schematic');
     const btnPcb = document.getElementById('btn-pcb');
@@ -67,10 +68,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. 同步画布图元显示/隐藏
         syncCanvasComponents();
 
-        // 2. 切换批注显示/隐藏（根据版本过滤，不重新创建）- 只操作画布DOM，不触碰左侧面板
+        // 2. 切换批注显示/隐藏（根据版本和视图类型过滤，不重新创建）- 只操作画布DOM，不触碰左侧面板
         annotations.forEach(annotation => {
             if (annotation.element) {
-                const shouldShow = annotation.version === AppState.currentVersion;
+                const shouldShow = annotation.version === AppState.currentVersion &&
+                                   annotation.viewType === currentDrawingType;
                 annotation.element.style.display = shouldShow ? '' : 'none';
             }
         });
@@ -265,10 +267,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ============ 批注工具下拉菜单交互 ============
+    const annotationMainBtn = document.getElementById('annotation-main-btn');
+    const annotationSubMenu = document.getElementById('annotation-sub-menu');
+
+    // 切换下拉菜单显示/隐藏
+    if (annotationMainBtn && annotationSubMenu) {
+        annotationMainBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            annotationSubMenu.classList.toggle('hidden');
+        });
+
+        // 点击下拉菜单内部不关闭
+        annotationSubMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
+    // 全局点击监听：点击外部区域关闭下拉菜单
+    document.addEventListener('click', () => {
+        if (annotationSubMenu && !annotationSubMenu.classList.contains('hidden')) {
+            annotationSubMenu.classList.add('hidden');
+        }
+    });
+
     // 工具按钮事件绑定
     if (toolSelect) toolSelect.addEventListener('click', () => setToolMode(ToolMode.SELECT));
     if (toolPan) toolPan.addEventListener('click', () => setToolMode(ToolMode.PAN));
-    if (toolRect) toolRect.addEventListener('click', () => setToolMode(ToolMode.ANNOTATE));
+    if (toolRect) {
+        toolRect.addEventListener('click', () => {
+            setToolMode(ToolMode.ANNOTATE);
+            // 点击具体工具后关闭下拉菜单
+            if (annotationSubMenu) {
+                annotationSubMenu.classList.add('hidden');
+            }
+        });
+    }
 
     // ============ 画布缩放功能 ============
     // 滚轮缩放
@@ -334,16 +368,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAnnotationBox = null;
     let drawStartX, drawStartY;
 
+    // 调试日志函数
+    function logDrawDebug(stage, scale, startX, startY, currentX, currentY) {
+        console.log(`[Draw Debug] ${stage}: scale=${scale}, start=(${startX?.toFixed(2)}, ${startY?.toFixed(2)}), current=(${currentX?.toFixed(2)}, ${currentY?.toFixed(2)})`);
+    }
+
     canvasWrapper.addEventListener('mousedown', (e) => {
         if (currentToolMode !== ToolMode.ANNOTATE) return;
         if (e.target.closest('.annotation-box') || e.target.closest('.annotation-input-panel')) return;
 
         isDrawing = true;
-        
-        // 使用精准坐标映射
+
+        // 使用精准坐标映射（图纸空间坐标）
         const coords = getCanvasCoordinates(e.clientX, e.clientY);
         drawStartX = coords.x;
         drawStartY = coords.y;
+
+        logDrawDebug('mousedown', canvasState.scale, drawStartX, drawStartY);
 
         // 创建批注框
         currentAnnotationBox = document.createElement('div');
@@ -352,16 +393,17 @@ document.addEventListener('DOMContentLoaded', () => {
         currentAnnotationBox.style.top = drawStartY + 'px';
         currentAnnotationBox.style.width = '0px';
         currentAnnotationBox.style.height = '0px';
-        
-        // 将批注框添加到当前可见的画布中
-        const activeCanvas = currentDrawingType === 'schematic' ? canvasSchematic : canvasPcb;
-        activeCanvas.appendChild(currentAnnotationBox);
+
+        // 将批注框添加到独立的批注层（不受 canvasTransform 影响）
+        if (annotationLayer) {
+            annotationLayer.appendChild(currentAnnotationBox);
+        }
     });
 
     canvasWrapper.addEventListener('mousemove', (e) => {
         if (!isDrawing || !currentAnnotationBox) return;
 
-        // 使用精准坐标映射
+        // 使用精准坐标映射（图纸空间坐标）
         const coords = getCanvasCoordinates(e.clientX, e.clientY);
         const currentX = coords.x;
         const currentY = coords.y;
@@ -370,6 +412,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const height = Math.abs(currentY - drawStartY);
         const left = Math.min(currentX, drawStartX);
         const top = Math.min(currentY, drawStartY);
+
+        logDrawDebug('mousemove', canvasState.scale, drawStartX, drawStartY, currentX, currentY);
 
         currentAnnotationBox.style.left = left + 'px';
         currentAnnotationBox.style.top = top + 'px';
@@ -1245,8 +1289,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 为每个预置批注创建 DOM 元素
         annotations.forEach(annotation => {
-            const activeCanvas = annotation.viewType === 'schematic' ? canvasSchematic : canvasPcb;
-
             // 创建批注框
             const annotationBox = document.createElement('div');
             annotationBox.className = 'annotation-box';
@@ -1263,6 +1305,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 annotationBox.style.display = 'none';
             }
 
+            // 根据视图类型决定是否显示（当前视图）
+            if (annotation.viewType !== currentDrawingType) {
+                annotationBox.style.display = 'none';
+            }
+
             // 添加角标
             const badge = document.createElement('div');
             badge.className = 'annotation-badge';
@@ -1275,8 +1322,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 highlightAnnotation(annotation.id);
             });
 
-            if (activeCanvas) {
-                activeCanvas.appendChild(annotationBox);
+            // 将批注框添加到独立的批注层
+            if (annotationLayer) {
+                annotationLayer.appendChild(annotationBox);
             }
 
             // 更新批注数据中的 element 引用
