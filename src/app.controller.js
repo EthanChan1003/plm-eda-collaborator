@@ -1942,4 +1942,93 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasWrapper.addEventListener('mousedown', hideAnnotationBubble);
         canvasWrapper.addEventListener('wheel', hideAnnotationBubble);
     }
+
+    // ============ V4.0 紧急修复：补齐丢失的 2D 渲染与高亮引擎 ============
+
+    // 1. 画布视图更新核心
+    function updateCanvasTransform() {
+        if (!canvasTransform) return;
+        canvasTransform.style.transform = `translate(${canvasState.translateX}px, ${canvasState.translateY}px) scale(${canvasState.scale})`;
+        const zoomLevel = document.getElementById('zoom-level');
+        if (zoomLevel) zoomLevel.textContent = Math.round(canvasState.scale * 100) + '%';
+    }
+
+    // 2. 缩放数学计算逻辑
+    function zoom(factor, centerX, centerY) {
+        if (!canvasWrapper) return;
+        const newScale = Math.max(0.2, Math.min(5, canvasState.scale * factor));
+
+        if (centerX !== undefined && centerY !== undefined) {
+            const rect = canvasWrapper.getBoundingClientRect();
+            const mouseX = centerX - rect.left;
+            const mouseY = centerY - rect.top;
+            
+            updateCanvasState({
+                translateX: mouseX - (mouseX - canvasState.translateX) * (newScale / canvasState.scale),
+                translateY: mouseY - (mouseY - canvasState.translateY) * (newScale / canvasState.scale)
+            });
+        }
+        updateCanvasState({ scale: newScale });
+        updateCanvasTransform();
+    }
+
+    // 3. 恢复画布滚轮监听
+    if (canvasWrapper) {
+        canvasWrapper.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const factor = e.deltaY > 0 ? 0.9 : 1.1;
+            zoom(factor, e.clientX, e.clientY);
+        }, { passive: false });
+    }
+
+    // 4. 恢复 EventBus 的缩放指令监听
+    bus.on('ZOOM_IN', () => zoom(1.2));
+    bus.on('ZOOM_OUT', () => zoom(0.8));
+    bus.on('ZOOM_RESET', () => {
+        updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
+        updateCanvasTransform();
+    });
+
+    // 5. 恢复版本差异的高亮渲染逻辑
+    function applyDiffHighlight() {
+        document.querySelectorAll('.eda-component').forEach(el => {
+            el.classList.remove('diff-added', 'diff-modified', 'diff-deleted', 'diff-moved');
+        });
+        Object.keys(mockDiffData).forEach(ref => {
+            const diff = mockDiffData[ref];
+            const components = document.querySelectorAll(`.eda-component[data-ref="${ref}"]`);
+            components.forEach(comp => {
+                if (diff.type === 'moved') {
+                    comp.classList.add('diff-moved');
+                } else {
+                    comp.classList.add(`diff-${diff.type}`);
+                }
+            });
+        });
+        document.querySelectorAll('.diff-position-indicator').forEach(el => el.classList.remove('hidden'));
+    }
+
+    function clearDiffHighlight() {
+        document.querySelectorAll('.eda-component').forEach(el => {
+            el.classList.remove('diff-added', 'diff-modified', 'diff-deleted', 'diff-moved');
+        });
+        document.querySelectorAll('.diff-position-indicator').forEach(el => el.classList.add('hidden'));
+    }
+
+    // 6. 恢复全局 Hover 联动函数（挂载到 window 供 HTML 内联调用）
+    window.highlightComponent = function(ref) {
+        const comps = document.querySelectorAll(`.eda-component[data-ref="${ref}"]`);
+        comps.forEach(c => {
+            c.style.filter = "drop-shadow(0 0 4px rgba(37, 99, 235, 0.6))";
+        });
+    };
+
+    window.clearHighlight = function() {
+        const comps = document.querySelectorAll('.eda-component');
+        comps.forEach(c => {
+            if (!c.classList.contains('selected-component')) {
+                c.style.filter = "";
+            }
+        });
+    };
 });
