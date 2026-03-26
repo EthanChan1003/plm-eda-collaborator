@@ -38,6 +38,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolZoomIn = document.getElementById('tool-zoom-in');
     const toolZoomOut = document.getElementById('tool-zoom-out');
     const toolReset = document.getElementById('tool-reset');
+    const toolSplitView = document.getElementById('tool-split-view');
+
+    // 2D/3D 分屏容器
+    const view2dContainer = document.getElementById('view-2d-container');
+    const view3dContainer = document.getElementById('view-3d-container');
+    let isSplitViewActive = false;
+
+    // Three.js 引擎变量
+    let scene, camera, renderer, controls;
+    let isThreeInitialized = false;
 
     // 全局版本选择器
     const globalVersionSelect = document.getElementById('global-version-select');
@@ -752,6 +762,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // 更新跨视图预警
         updateCrossViewWarnings();
+
+        // 隐藏分屏按钮，原理图不支持 3D 视图
+        if (toolSplitView) toolSplitView.classList.add('hidden');
+        if (isSplitViewActive) toggleSplitView();
     }
 
     // 切换到PCB视图
@@ -775,6 +789,119 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // 更新跨视图预警
         updateCrossViewWarnings();
+
+        // 显示分屏按钮，PCB 视图支持 3D 协同
+        if (toolSplitView) toolSplitView.classList.remove('hidden');
+    }
+
+    // ============ 真正的 3D 引擎 (Three.js) ============
+    function initThreeEngine() {
+        if (isThreeInitialized) return;
+        
+        // 1. 初始化场景
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color('#1e293b'); // 暗黑工业风背景
+
+        // 2. 初始化相机
+        const width = view3dContainer.clientWidth || 500;
+        const height = view3dContainer.clientHeight || 800;
+        camera = new THREE.PerspectiveCamera(45, width / height, 1, 2000);
+        camera.position.set(0, -600, 600); // 俯视等轴测视角
+
+        // 3. 初始化渲染器
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        // 添加阴影支持
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        view3dContainer.appendChild(renderer.domElement);
+
+        // 4. 添加灯光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // 环境光
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5); // 平行光打出阴影
+        dirLight.position.set(200, -200, 400);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // 5. 轨道控制器 (支持鼠标旋转、缩放、平移)
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 6. 绘制 PCB 物理基板
+        createPcbBoard();
+
+        // 7. 渲染循环
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // 监听窗口大小变化
+        window.addEventListener('resize', () => {
+            if (isSplitViewActive) {
+                camera.aspect = view3dContainer.clientWidth / view3dContainer.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(view3dContainer.clientWidth, view3dContainer.clientHeight);
+            }
+        });
+
+        isThreeInitialized = true;
+    }
+
+    function createPcbBoard() {
+        // PCB 基板尺寸 (映射我们的 2D 坐标系，居中放置)
+        const boardWidth = 900;
+        const boardHeight = 700;
+        const boardThickness = 16; // 1.6mm 板厚放大映射
+        
+        // 创建几何体与材质
+        const geometry = new THREE.BoxGeometry(boardWidth, boardHeight, boardThickness);
+        const material = new THREE.MeshPhongMaterial({ 
+            color: '#0f172a', // 深色阻焊层
+            shininess: 30 
+        });
+        
+        const board = new THREE.Mesh(geometry, material);
+        board.position.set(0, 0, 0);
+        board.receiveShadow = true;
+        board.castShadow = true;
+        scene.add(board);
+    }
+
+    // 切换 2D/3D 分屏
+    function toggleSplitView() {
+        isSplitViewActive = !isSplitViewActive;
+        
+        if (isSplitViewActive) {
+            toolSplitView.classList.add('bg-blue-50', 'text-blue-600');
+            view2dContainer.style.flex = '0 0 50%';
+            view3dContainer.style.width = '50%';
+            
+            // 延迟一点等 CSS flex 过渡完成后再初始化或重置画布大小
+            setTimeout(() => {
+                if (!isThreeInitialized) {
+                    initThreeEngine();
+                } else {
+                    camera.aspect = view3dContainer.clientWidth / view3dContainer.clientHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(view3dContainer.clientWidth, view3dContainer.clientHeight);
+                }
+            }, 300);
+            
+        } else {
+            toolSplitView.classList.remove('bg-blue-50', 'text-blue-600');
+            view2dContainer.style.flex = '1';
+            view3dContainer.style.width = '0';
+        }
+    }
+    
+    if (toolSplitView) {
+        toolSplitView.addEventListener('click', toggleSplitView);
     }
 
     // ============ 渲染版本差异列表 ============

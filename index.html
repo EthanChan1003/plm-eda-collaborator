@@ -14,6 +14,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- html2canvas for canvas snapshot -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Three.js for 3D MCAD -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body class="bg-gray-50 h-screen overflow-hidden flex flex-col">
 
@@ -143,6 +146,9 @@
                     <i class="fas fa-expand text-sm"></i>
                 </button>
                 <div class="w-px h-6 bg-gray-200 self-center mx-2"></div>
+                <button id="tool-split-view" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors hidden" title="2D/3D 机电协同分屏">
+                    <i class="fas fa-cube text-sm"></i>
+                </button>
                 <div class="relative" id="annotation-group">
                     <button id="annotation-main-btn" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-all" title="批注工具">
                         <i class="fas fa-pen-nib text-sm"></i>
@@ -163,12 +169,12 @@
             </div>
 
             <!-- 图纸渲染区 -->
-            <div id="canvas-wrapper" class="flex-1 canvas-grid relative overflow-hidden">
+            <div id="canvas-wrapper" class="flex-1 flex canvas-grid relative overflow-hidden">
 
-                <!-- 变换容器（用于缩放和平移） -->
-                <div id="canvas-transform" class="canvas-transform-wrapper absolute inset-0 flex items-center justify-center">
+                <div id="view-2d-container" class="flex-1 relative overflow-hidden transition-all duration-300">
+                    <div id="canvas-transform" class="canvas-transform-wrapper absolute inset-0 flex items-center justify-center">
 
-                    <!-- 【原理图】SVG 容器 - V2.1 专业修复版 -->
+                        <!-- 【原理图】SVG 容器 - V2.1 专业修复版 -->
                     <div id="canvas-schematic" class="w-[1000px] h-[800px] flex items-center justify-center bg-white relative">
                         <!-- 批注容器（在变换组内，随画布缩放平移） -->
                         <div class="annotations-container absolute inset-0 pointer-events-none"></div>
@@ -654,7 +660,13 @@
                             PCB 2D Engine V2.1
                         </div>
                     </div>
+                </div>
+                </div>
 
+                <div id="view-3d-container" class="w-0 overflow-hidden border-l border-gray-200 bg-[#1e293b] relative transition-all duration-300">
+                    <div class="absolute bottom-4 right-6 text-[11px] text-gray-400 pointer-events-none uppercase tracking-widest font-bold z-10">
+                        Three.js MCAD Engine
+                    </div>
                 </div>
 
                 <!-- 缩放信息显示 -->
