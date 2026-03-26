@@ -1496,7 +1496,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     margin: 0,
                     filename: `硬件评审报告_${AppState.currentVersion}.pdf`,
                     image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true, logging: false },
+                    html2canvas: {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false,
+                        // 使用全局 html2canvas 实例
+                        html2canvas: window.html2canvas
+                    },
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
                 };
 
