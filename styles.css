@@ -71,6 +71,21 @@ body {
 .annotation-box.breathing {
     animation: breathe 1s ease-in-out 3;
 }
+/* 已解决批注框样式 */
+.annotation-box.annotation-resolved {
+    border-color: #9CA3AF;
+    background-color: rgba(156, 163, 175, 0.05);
+}
+.annotation-box.annotation-resolved:hover {
+    border-color: #9CA3AF;
+    background-color: rgba(156, 163, 175, 0.1);
+    box-shadow: none;
+}
+/* 已解决批注框不响应呼吸动画 */
+.annotation-box.annotation-resolved.breathing {
+    animation: none;
+    box-shadow: none;
+}
 /* 批注角标 */
 .annotation-badge {
     position: absolute;

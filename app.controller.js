@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const boxWidth = parseInt(annotationBox.style.width);
         const boxHeight = parseInt(annotationBox.style.height);
 
-        // 存储批注数据（包含视图类型和中心坐标）
+        // 存储批注数据（包含视图类型、中心坐标和状态）
         const annotationData = {
             id: annotationId,
             text: text,
@@ -269,7 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
             element: annotationBox,
             viewType: currentDrawingType,  // 记录当前视图类型
             centerX: boxLeft + boxWidth / 2,
-            centerY: boxTop + boxHeight / 2
+            centerY: boxTop + boxHeight / 2,
+            status: 'open'  // 初始状态为待处理
         };
         annotations.push(annotationData);
 
@@ -313,6 +314,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // ============ 批注状态切换功能 ============
+    window.toggleAnnotationStatus = function(id) {
+        const annotation = annotations.find(a => a.id === id);
+        if (!annotation) return;
+        
+        // 在 'open' 和 'resolved' 之间切换
+        annotation.status = annotation.status === 'open' ? 'resolved' : 'open';
+        
+        // 更新画布上对应批注框的样式
+        if (annotation.element) {
+            if (annotation.status === 'resolved') {
+                annotation.element.classList.add('annotation-resolved');
+            } else {
+                annotation.element.classList.remove('annotation-resolved');
+            }
+        }
+        
+        // 重新渲染批注列表
+        renderNotesContent();
+    };
 
     // ============ 跨视图定位功能 ============
     window.locateAnnotation = function(annotationId) {
@@ -433,6 +455,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 渲染批注列表 ============
     function renderNotesContent() {
+        // 同步更新画布上所有批注框的样式类
+        annotations.forEach(annotation => {
+            if (annotation.element) {
+                if (annotation.status === 'resolved') {
+                    annotation.element.classList.add('annotation-resolved');
+                } else {
+                    annotation.element.classList.remove('annotation-resolved');
+                }
+            }
+        });
+
         if (annotations.length === 0) {
             tabContent.innerHTML = `
                 <div class="flex flex-col items-center justify-center h-full text-gray-400">
@@ -448,17 +481,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         annotations.slice().reverse().forEach(note => {
             const viewLabel = note.viewType === 'schematic' ? '原理图' : 'PCB';
+            const isResolved = note.status === 'resolved';
+            const statusIcon = isResolved ? 'fa-check-circle text-green-500' : 'fa-circle text-blue-500';
+            const cardBgClass = isResolved ? 'bg-gray-50' : 'bg-white';
+            const textClass = isResolved ? 'line-through text-gray-400' : 'text-gray-600';
+            
             notesHTML += `
-                <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 bg-white" data-note-id="${note.id}">
+                <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass}" data-note-id="${note.id}">
                     <div class="flex items-center justify-between mb-1">
                         <div class="flex items-center space-x-2">
                             <span class="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">${note.id}</span>
                             <span class="font-bold text-gray-800 text-xs">${note.author}</span>
                             <span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">${viewLabel}</span>
                         </div>
-                        <span class="text-[10px] text-gray-400">${note.time}</span>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[10px] text-gray-400">${note.time}</span>
+                            <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id})" title="${isResolved ? '已解决，点击标记为待处理' : '待处理，点击标记为已解决'}"></i>
+                        </div>
                     </div>
-                    <div class="text-xs text-gray-600 mt-1 line-clamp-2">${note.text}</div>
+                    <div class="text-xs ${textClass} mt-1 line-clamp-2">${note.text}</div>
                 </div>
             `;
         });
