@@ -187,6 +187,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 全局版本选择器事件
     if (globalVersionSelect) {
         globalVersionSelect.addEventListener('change', (e) => {
+            // 清理动作：隐藏气泡
+            hideAnnotationBubble();
             switchGlobalVersion(e.target.value);
         });
     }
@@ -202,8 +204,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============ 批注气泡系统 ============
-    function showAnnotationBubble(annotationId) {
-        const annotation = annotations.find(a => a.id === annotationId);
+    function showAnnotationBubble(annotationId, version) {
+        const targetVersion = version || AppState.currentVersion;
+        const annotation = annotations.find(a => a.id === annotationId && a.version === targetVersion);
         if (!annotation || !annotation.element) return;
 
         // 定位气泡
@@ -214,8 +217,33 @@ document.addEventListener('DOMContentLoaded', () => {
         annotationBubble.style.left = bubbleX + 'px';
         annotationBubble.style.top = bubbleY + 'px';
 
-        // 填充内容
-        bubbleContent.textContent = annotation.text;
+        // 数据防御性降级：提供默认值防止渲染崩溃
+        const authorName = annotation.author || '系统预置';
+        const authorInitial = authorName.charAt(0);
+        const noteTime = annotation.time || '';
+
+        // 填充内容（包含作者信息）
+        annotationBubble.innerHTML = `
+            <div class="flex items-start justify-between mb-2">
+                <div class="flex items-center">
+                    <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold mr-2">${authorInitial}</div>
+                    <div>
+                        <div class="text-xs font-medium text-gray-900">${authorName}</div>
+                        <div class="text-[10px] text-gray-500">${noteTime}</div>
+                    </div>
+                </div>
+                <button id="close-bubble" class="text-gray-400 hover:text-gray-600 transition-colors ml-2">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
+            </div>
+            <div class="text-sm text-gray-700 leading-relaxed">${annotation.text}</div>
+        `;
+
+        // 重新绑定关闭按钮事件
+        const closeBtn = annotationBubble.querySelector('#close-bubble');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', hideAnnotationBubble);
+        }
 
         // 显示气泡
         annotationBubble.classList.remove('hidden');
@@ -668,6 +696,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 切换到原理图视图
     function switchToSchematic() {
+        // 清理动作：隐藏气泡
+        hideAnnotationBubble();
+
         currentDrawingType = 'schematic';
         if (btnSchematic) {
             btnSchematic.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
@@ -688,6 +719,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 切换到PCB视图
     function switchToPcb() {
+        // 清理动作：隐藏气泡
+        hideAnnotationBubble();
+
         currentDrawingType = 'pcb';
         if (btnPcb) {
             btnPcb.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
@@ -815,6 +849,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let notesHTML = '<div class="space-y-2 p-2">';
 
         versionAnnotations.slice().reverse().forEach(note => {
+            // 数据防御性降级：提供默认值防止渲染崩溃
+            const authorName = note.author || '系统预置';
+            const authorInitial = authorName.charAt(0);
+            const noteTime = note.time || '';
+
             const viewLabel = note.viewType === 'schematic' ? '原理图' : 'PCB';
             const isResolved = note.status === 'resolved';
             const statusIcon = isResolved ? 'fa-check-circle text-green-500' : 'fa-circle text-blue-500';
@@ -830,11 +869,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="flex items-center justify-between mb-1">
                         <div class="flex items-center space-x-2">
                             <span class="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">${note.id}</span>
-                            <span class="font-bold text-gray-800 text-xs">${note.author}</span>
+                            <div class="flex items-center">
+                                <div class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold mr-1.5">${authorInitial}</div>
+                                <span class="font-bold text-gray-800 text-xs">${authorName}</span>
+                            </div>
                             <span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">${viewLabel}</span>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <span class="text-[10px] text-gray-400">${note.time}</span>
+                            <span class="text-[10px] text-gray-400">${noteTime}</span>
                             <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id}, '${note.version}')" title="${isResolved ? '已解决，点击标记为待处理' : '待处理，点击标记为已解决'}"></i>
                             ${deleteBtn}
                         </div>
@@ -1531,5 +1573,12 @@ document.addEventListener('DOMContentLoaded', () => {
             btnExportPdf.disabled = false;
             alert('PDF 生成失败，请重试');
         }
+    }
+
+    // ============ 全局交互熔断 ============
+    // 当用户在画布区域点击（准备拖拽）或滚动滚轮（准备缩放）时，立即隐藏气泡
+    if (canvasWrapper) {
+        canvasWrapper.addEventListener('mousedown', hideAnnotationBubble);
+        canvasWrapper.addEventListener('wheel', hideAnnotationBubble);
     }
 });
