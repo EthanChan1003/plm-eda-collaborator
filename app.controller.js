@@ -594,6 +594,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 重新渲染批注列表
         renderNotesContent();
+
+        // 更新跨视图预警（解决问题后红灯应熄灭）
+        updateCrossViewWarnings();
     };
 
     // ============ 批注删除功能 ============
@@ -679,6 +682,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTab === 'tree') {
             renderTreeContent();
         }
+        // 更新跨视图预警
+        updateCrossViewWarnings();
     }
 
     // 切换到PCB视图
@@ -697,6 +702,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTab === 'tree') {
             renderTreeContent();
         }
+        // 更新跨视图预警
+        updateCrossViewWarnings();
     }
 
     // ============ 渲染版本差异列表 ============
@@ -742,6 +749,34 @@ document.addEventListener('DOMContentLoaded', () => {
         
         diffHTML += '</div>';
         tabContent.innerHTML = diffHTML;
+    }
+
+    // ============ 跨视图预警系统 ============
+    function updateCrossViewWarnings() {
+        // 1. 清除当前画布中所有预警状态
+        document.querySelectorAll('.cross-view-warning').forEach(el => {
+            el.classList.remove('cross-view-warning');
+        });
+
+        // 2. 筛选跨视图的未解决批注
+        // 条件：当前版本 + 未解决状态 + 在另一个视图中创建
+        const crossViewAnnotations = annotations.filter(a =>
+            a.version === AppState.currentVersion &&
+            a.status === 'open' &&
+            a.viewType !== currentDrawingType
+        );
+
+        // 3. 为对应器件添加预警样式
+        crossViewAnnotations.forEach(annotation => {
+            const targetRef = annotation.targetRef;
+            if (!targetRef) return;
+
+            // 在当前激活的画布中查找对应器件
+            const components = document.querySelectorAll(`#canvas-${currentDrawingType} .eda-component[data-ref="${targetRef}"]`);
+            components.forEach(comp => {
+                comp.classList.add('cross-view-warning');
+            });
+        });
     }
 
     // ============ 渲染批注列表 ============
@@ -1349,6 +1384,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentTab === 'notes') {
             renderNotesContent();
         }
+
+        // 初始化跨视图预警（确保页面加载后就有红灯）
+        updateCrossViewWarnings();
     }
 
     // 执行预置批注渲染（只在 DOMContentLoaded 时执行一次）
