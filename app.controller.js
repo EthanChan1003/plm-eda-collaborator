@@ -42,7 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const bubbleContent = document.getElementById('bubble-content');
     const closeBubbleBtn = document.getElementById('close-bubble');
 
-    // 引擎已在 core.engine.js 中初始化，无需重复调用
+    // 初始化核心引擎（传递 DOM 依赖）
+    if (canvasWrapper && canvasTransform) {
+        initEngine(canvasWrapper, canvasTransform);
+    } else {
+        console.error('Canvas elements not found, engine initialization failed');
+    }
 
     // ============ 批注权限控制 ============
     function updateAnnotationPermissions() {
@@ -1105,15 +1110,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function generateTreeItem(ref, label, icon, isPrimary = false) {
         const data = mockComponentData[ref];
+        // 如果当前版本不存在该器件，返回空字符串（不渲染）
+        if (!data) return '';
         const primaryClass = isPrimary ? 'text-blue-600 bg-blue-50/30' : 'text-gray-600';
         const iconClass = isPrimary ? 'text-blue-500' : 'text-gray-400 group-hover:text-blue-500';
+        const partNumber = data.PartNumber?.split('-')[0] || 'N/A';
         return `
-            <div class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer ${primaryClass} group" 
-                 onmouseover="highlightComponent('${ref}')" 
-                 onmouseout="clearHighlight()" 
+            <div class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer ${primaryClass} group"
+                 onmouseover="highlightComponent('${ref}')"
+                 onmouseout="clearHighlight()"
                  onclick="selectComponent('${ref}')">
                 <i class="fas fa-${icon} w-5 ${iconClass}"></i>
-                <span>${ref} (${data.PartNumber.split('-')[0]})</span>
+                <span>${ref} (${partNumber})</span>
             </div>
         `;
     }

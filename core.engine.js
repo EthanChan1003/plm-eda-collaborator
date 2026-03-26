@@ -13,19 +13,27 @@ function initEngine(wrapper, transform) {
 
 // ============ 精准坐标映射函数 ============
 function getCanvasCoordinates(clientX, clientY) {
+    if (!canvasWrapper) {
+        console.warn('canvasWrapper is not initialized');
+        return { x: 0, y: 0 };
+    }
     const rect = canvasWrapper.getBoundingClientRect();
     const mouseX = clientX - rect.left;
     const mouseY = clientY - rect.top;
-    
+
     // 图纸空间坐标 = (屏幕坐标 - 平移偏移) / 缩放比例
     const canvasX = (mouseX - canvasState.translateX) / canvasState.scale;
     const canvasY = (mouseY - canvasState.translateY) / canvasState.scale;
-    
+
     return { x: canvasX, y: canvasY };
 }
 
 // ============ 画布变换功能 ============
 function updateCanvasTransform() {
+    if (!canvasTransform) {
+        console.warn('canvasTransform is not initialized');
+        return;
+    }
     canvasTransform.style.transform = `translate(${canvasState.translateX}px, ${canvasState.translateY}px) scale(${canvasState.scale})`;
     const zoomLevel = document.getElementById('zoom-level');
     if (zoomLevel) {
@@ -34,18 +42,22 @@ function updateCanvasTransform() {
 }
 
 function zoom(factor, centerX, centerY) {
+    if (!canvasWrapper) {
+        console.warn('canvasWrapper is not initialized');
+        return;
+    }
     const newScale = Math.max(0.2, Math.min(5, canvasState.scale * factor));
-    
+
     if (centerX !== undefined && centerY !== undefined) {
         // 以鼠标位置为中心缩放
         const rect = canvasWrapper.getBoundingClientRect();
         const mouseX = centerX - rect.left;
         const mouseY = centerY - rect.top;
-        
+
         canvasState.translateX = mouseX - (mouseX - canvasState.translateX) * (newScale / canvasState.scale);
         canvasState.translateY = mouseY - (mouseY - canvasState.translateY) * (newScale / canvasState.scale);
     }
-    
+
     canvasState.scale = newScale;
     updateCanvasTransform();
 }
