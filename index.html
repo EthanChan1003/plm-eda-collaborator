@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDA 可视化协同 V3.0 - 模块化架构</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 模块化样式 -->
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="bg-gray-50 h-screen overflow-hidden flex flex-col">
+
+    <!-- 顶部导航栏 (Header) -->
+    <header class="h-[56px] min-h-[56px] bg-white border-b border-gray-200 px-6 flex items-center justify-between z-30 shadow-sm relative">
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white shadow-sm">
+                    <i class="fas fa-microchip"></i>
+                </div>
+                <h1 class="font-bold text-gray-800 text-base">EDA 可视化协同</h1>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4 border-l border-gray-100 pl-4 h-full">
+            <div class="text-right">
+                <div class="text-xs font-semibold text-gray-700 leading-tight">张三</div>
+                <div class="text-[10px] text-gray-400">产品设计师 (评审员)</div>
+            </div>
+            <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 border border-gray-100 shadow-inner">
+                <i class="fas fa-user text-xs"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体工作区 (Main Content) -->
+    <main class="flex-1 flex overflow-hidden">
+        
+        <!-- 左侧控制面板 (Left Panel) -->
+        <aside class="w-[320px] flex flex-col bg-white border-r border-gray-200 shadow-sm z-20 overflow-hidden">
+            
+            <!-- 面板顶部：结构树专有控制区 -->
+            <div id="panel-top-search" class="border-b border-gray-100 bg-gray-50/50">
+                <div class="p-3 pb-2">
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400 text-xs"></i>
+                        </div>
+                        <input type="text" id="search-input"
+                               class="block w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-md bg-white text-xs placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all" 
+                               placeholder="搜索位号 / 网络名..."
+                               autocomplete="off">
+                        <ul id="search-dropdown" class="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto hidden"></ul>
+                    </div>
+                </div>
+                <div class="px-3 pb-3">
+                    <div class="flex bg-gray-200/60 rounded-md p-1">
+                        <button id="btn-schematic" class="flex-1 py-1 text-[11px] rounded bg-white shadow-sm text-blue-600 font-medium transition-all">原理图</button>
+                        <button id="btn-pcb" class="flex-1 py-1 text-[11px] rounded text-gray-500 hover:text-gray-700 transition-all">PCB</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 面板顶部：版本对比控制区 -->
+            <div id="panel-top-diff" class="p-4 border-b border-gray-100 bg-gray-50/50 hidden">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase">基准版本</label>
+                        <select class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option>V2.0 (当前)</option>
+                            <option>V1.9</option>
+                            <option>V1.8</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase">对比版本</label>
+                        <select class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option disabled selected>请选择版本</option>
+                            <option>V1.9</option>
+                            <option>V1.8</option>
+                            <option>V1.0</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 面板中间：Tab 与内容区 -->
+            <div class="flex-1 flex overflow-hidden">
+                <nav class="w-[60px] border-r border-gray-100 flex flex-col items-center py-4 space-y-6 bg-white">
+                    <button data-tab="tree" class="tab-btn w-10 h-10 rounded flex items-center justify-center text-blue-600 bg-blue-50" title="结构树">
+                        <i class="fas fa-folder-tree text-lg"></i>
+                    </button>
+                    <button data-tab="diff" class="tab-btn w-10 h-10 rounded flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 transition-all" title="版本差异">
+                        <i class="fas fa-code-compare text-lg"></i>
+                    </button>
+                    <button data-tab="collab" class="tab-btn w-10 h-10 rounded flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 transition-all" title="协同记录">
+                        <i class="fas fa-history text-lg"></i>
+                    </button>
+                    <button data-tab="notes" class="tab-btn w-10 h-10 rounded flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 transition-all" title="批注列表">
+                        <i class="fas fa-comment-dots text-lg"></i>
+                    </button>
+                </nav>
+
+                <div class="flex-1 flex flex-col overflow-hidden">
+                    <div class="p-4 border-b border-gray-50 flex items-center justify-between">
+                        <h2 id="tab-title" class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">结构树</h2>
+                        <i class="fas fa-ellipsis-v text-gray-300 text-[10px] cursor-pointer hover:text-gray-500"></i>
+                    </div>
+                    <div id="tab-content" class="flex-1 overflow-y-auto p-2 no-scrollbar"></div>
+                </div>
+            </div>
+
+            <div id="panel-bottom-notes" class="p-4 border-t border-gray-200 bg-white flex space-x-3 hidden">
+                <button class="flex-1 px-3 py-2 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 transition-colors text-xs">
+                    <i class="fas fa-file-pdf mr-1.5"></i>导出 PDF
+                </button>
+                <button class="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm text-xs font-semibold">
+                    <i class="fas fa-check-circle mr-1.5"></i>提交评审
+                </button>
+            </div>
+        </aside>
+
+        <!-- 右侧可视化画布 (Right Canvas) -->
+        <section class="flex-1 flex flex-col overflow-hidden relative" id="canvas-container">
+            
+            <!-- 固定通栏工具栏 - 在 transform 容器之外 -->
+            <div class="h-16 w-full bg-white border-b border-gray-200 flex items-center justify-center space-x-2 shadow-sm toolbar-fixed">
+                <button id="tool-select" class="w-10 h-10 rounded flex items-center justify-center tool-active" title="选择">
+                    <i class="fas fa-mouse-pointer text-sm"></i>
+                </button>
+                <button id="tool-pan" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-gray-50" title="平移">
+                    <i class="fas fa-hand-paper text-sm"></i>
+                </button>
+                <div class="w-px h-6 bg-gray-200 self-center mx-2"></div>
+                <button id="tool-zoom-in" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-gray-50" title="放大">
+                    <i class="fas fa-search-plus text-sm"></i>
+                </button>
+                <button id="tool-zoom-out" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-gray-50" title="缩小">
+                    <i class="fas fa-search-minus text-sm"></i>
+                </button>
+                <button id="tool-reset" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-gray-50" title="适应屏幕">
+                    <i class="fas fa-expand text-sm"></i>
+                </button>
+                <div class="w-px h-6 bg-gray-200 self-center mx-2"></div>
+                <div class="relative group" id="annotation-group">
+                    <button id="annotation-main-btn" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-all" title="批注工具">
+                        <i class="fas fa-pen-nib text-sm"></i>
+                        <i class="fas fa-caret-down text-[8px] ml-1 mt-1"></i>
+                    </button>
+                    <div id="annotation-sub-menu" class="absolute left-1/2 transform -translate-x-1/2 mt-1 w-12 bg-white border border-gray-200 rounded shadow-lg p-1 space-y-1 hidden group-hover:block">
+                        <button id="tool-rect" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-blue-50 hover:text-blue-600" title="矩形框">
+                            <i class="far fa-square text-sm"></i>
+                        </button>
+                        <button class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-blue-50 hover:text-blue-600" title="圆形框">
+                            <i class="far fa-circle text-sm"></i>
+                        </button>
+                        <button class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-blue-50 hover:text-blue-600" title="标记点/箭头">
+                            <i class="fas fa-location-arrow text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 图纸渲染区 -->
+            <div id="canvas-wrapper" class="flex-1 canvas-grid relative overflow-hidden">
+                
+                <!-- 变换容器（用于缩放和平移） -->
+                <div id="canvas-transform" class="canvas-transform-wrapper absolute inset-0 flex items-center justify-center">
+                    
+                    <!-- 【原理图】SVG 容器 - V2.1 专业修复版 -->
+                    <div id="canvas-schematic" class="w-[1000px] h-[800px] flex items-center justify-center bg-white relative">
+                        <svg class="w-full h-full" viewBox="0 0 1000 800" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <pattern id="grid-sch" width="20" height="20" patternUnits="userSpaceOnUse">
+                                    <circle cx="1" cy="1" r="1" fill="#e5e7eb" />
+                                </pattern>
+                                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                    <polygon points="0 0, 10 3.5, 0 7" fill="#F59E0B" />
+                                </marker>
+                            </defs>
+                            <rect width="1000" height="800" fill="url(#grid-sch)" />
+
+                            <!-- ========== 电源网络 ========== -->
+                            <text x="30" y="40" font-size="12" fill="#dc2626" font-weight="bold">VCC 3.3V</text>
+                            <text x="30" y="750" font-size="12" fill="#16a34a" font-weight="bold">GND</text>
+                            
+                            <!-- 电源总线 -->
+                            <path class="eda-wire" d="M 60 50 L 900 50" stroke="#dc2626" stroke-width="2" fill="none" />
+                            <path class="eda-wire" d="M 60 760 L 900 760" stroke="#16a34a" stroke-width="2" fill="none" />
+
+                            <!-- ========== U1 MCU (中央大器件) ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="U1" data-type="IC">
+                                <!-- 主体 -->
+                                <rect x="350" y="280" width="200" height="240" fill="white" stroke="#1f2937" stroke-width="2.5" />
+                                <text x="450" y="390" font-size="16" font-weight="bold" text-anchor="middle" fill="#1f2937">U1</text>
+                                <text x="450" y="410" font-size="10" text-anchor="middle" fill="#6b7280">STM32F103</text>
+                                
+                                <!-- 左侧引脚 (16个) -->
+                                <line x1="330" y1="290" x2="350" y2="290" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="325" y="293" font-size="7" text-anchor="end" fill="#6b7280">1</text>
+                                <line x1="330" y1="305" x2="350" y2="305" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="325" y="308" font-size="7" text-anchor="end" fill="#6b7280">2</text>
+                                <line x1="330" y1="320" x2="350" y2="320" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="335" x2="350" y2="335" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="350" x2="350" y2="350" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="365" x2="350" y2="365" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="380" x2="350" y2="380" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="395" x2="350" y2="395" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="410" x2="350" y2="410" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="425" x2="350" y2="425" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="440" x2="350" y2="440" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="455" x2="350" y2="455" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="470" x2="350" y2="470" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="485" x2="350" y2="485" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="330" y1="500" x2="350" y2="500" stroke="#1f2937" stroke-width="1.5" />
+                                
+                                <!-- 右侧引脚 (16个) -->
+                                <line x1="550" y1="290" x2="570" y2="290" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="575" y="293" font-size="7" fill="#6b7280">32</text>
+                                <line x1="550" y1="305" x2="570" y2="305" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="320" x2="570" y2="320" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="335" x2="570" y2="335" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="350" x2="570" y2="350" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="365" x2="570" y2="365" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="380" x2="570" y2="380" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="395" x2="570" y2="395" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="410" x2="570" y2="410" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="425" x2="570" y2="425" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="440" x2="570" y2="440" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="455" x2="570" y2="455" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="470" x2="570" y2="470" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="485" x2="570" y2="485" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="550" y1="500" x2="570" y2="500" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== U2 LDO ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="U2" data-type="IC">
+                                <rect x="80" y="120" width="80" height="60" fill="white" stroke="#1f2937" stroke-width="2" />
+                                <text x="120" y="155" font-size="12" font-weight="bold" text-anchor="middle" fill="#1f2937">U2</text>
+                                <line x1="60" y1="135" x2="80" y2="135" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="60" y1="165" x2="80" y2="165" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="160" y1="150" x2="180" y2="150" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== Y1 晶振 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="Y1" data-type="Y">
+                                <!-- 左侧极板 -->
+                                <line x1="620" y1="290" x2="620" y2="330" stroke="#1f2937" stroke-width="2" />
+                                <!-- 右侧极板 -->
+                                <line x1="680" y1="290" x2="680" y2="330" stroke="#1f2937" stroke-width="2" />
+                                <!-- 晶体 -->
+                                <rect x="625" y="295" width="50" height="30" fill="white" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="650" y="315" font-size="9" font-weight="bold" text-anchor="middle" fill="#1f2937">Y1</text>
+                                <text x="650" y="350" font-size="8" text-anchor="middle" fill="#6b7280">8MHz</text>
+                                <!-- 引出线 -->
+                                <line x1="600" y1="305" x2="620" y2="305" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="600" y1="315" x2="620" y2="315" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== R1 电阻 (锯齿形) ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="R1" data-type="R">
+                                <path d="M 620 420 L 630 420 L 635 410 L 645 430 L 655 410 L 665 430 L 670 420 L 680 420" 
+                                      fill="none" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="650" y="405" font-size="9" font-weight="bold" text-anchor="middle" fill="#1f2937">R1</text>
+                                <text x="650" y="445" font-size="7" text-anchor="middle" fill="#6b7280">10K</text>
+                                <line x1="600" y1="420" x2="620" y2="420" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="680" y1="420" x2="700" y2="420" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== R2 电阻 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="R2" data-type="R">
+                                <path d="M 620 480 L 630 480 L 635 470 L 645 490 L 655 470 L 665 490 L 670 480 L 680 480" 
+                                      fill="none" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="650" y="465" font-size="9" font-weight="bold" text-anchor="middle" fill="#1f2937">R2</text>
+                                <text x="650" y="505" font-size="7" text-anchor="middle" fill="#6b7280">4.7K</text>
+                                <line x1="600" y1="480" x2="620" y2="480" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== R3 电阻 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="R3" data-type="R">
+                                <path d="M 750 320 L 760 320 L 765 310 L 775 330 L 785 310 L 795 330 L 800 320 L 810 320" 
+                                      fill="none" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="780" y="305" font-size="9" font-weight="bold" text-anchor="middle" fill="#1f2937">R3</text>
+                                <text x="780" y="345" font-size="7" text-anchor="middle" fill="#6b7280">330R</text>
+                                <line x1="730" y1="320" x2="750" y2="320" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== C1 电容 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="C1" data-type="C">
+                                <line x1="240" y1="300" x2="240" y2="330" stroke="#1f2937" stroke-width="2.5" />
+                                <line x1="255" y1="300" x2="255" y2="330" stroke="#1f2937" stroke-width="2.5" />
+                                <text x="247" y="295" font-size="9" font-weight="bold" text-anchor="middle" fill="#1f2937">C1</text>
+                                <text x="247" y="345" font-size="7" text-anchor="middle" fill="#6b7280">100nF</text>
+                                <line x1="240" y1="315" x2="220" y2="315" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="255" y1="315" x2="275" y2="315" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== C2 电容 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="C2" data-type="C">
+                                <line x1="240" y1="380" x2="240" y2="410" stroke="#1f2937" stroke-width="2.5" />
+                                <line x1="255" y1="380" x2="255" y2="410" stroke="#1f2937" stroke-width="2.5" />
+                                <text x="247" y="375" font-size="9" font-weight="bold" text-anchor="middle" fill="#1f2937">C2</text>
+                                <text x="247" y="425" font-size="7" text-anchor="middle" fill="#6b7280">10uF</text>
+                                <line x1="240" y1="395" x2="220" y2="395" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== C3 电容 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="C3" data-type="C">
+                                <line x1="720" y1="290" x2="720" y2="310" stroke="#1f2937" stroke-width="2" />
+                                <line x1="735" y1="290" x2="735" y2="310" stroke="#1f2937" stroke-width="2" />
+                                <text x="727" y="285" font-size="8" font-weight="bold" text-anchor="middle" fill="#1f2937">C3</text>
+                                <text x="727" y="325" font-size="6" text-anchor="middle" fill="#6b7280">22pF</text>
+                                <line x1="720" y1="300" x2="700" y2="300" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== D1 LED ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="D1" data-type="D">
+                                <!-- 三角形 -->
+                                <polygon points="850,300 850,340 880,320" fill="white" stroke="#1f2937" stroke-width="1.5" />
+                                <!-- 竖线 -->
+                                <line x1="880" y1="300" x2="880" y2="340" stroke="#1f2937" stroke-width="1.5" />
+                                <!-- 发光箭头 -->
+                                <line x1="885" y1="305" x2="895" y2="295" stroke="#1f2937" stroke-width="1" />
+                                <line x1="888" y1="310" x2="898" y2="300" stroke="#1f2937" stroke-width="1" />
+                                <polygon points="895,295 898,300 892,298" fill="#1f2937" />
+                                <polygon points="898,300 901,305 895,303" fill="#1f2937" />
+                                <text x="865" y="295" font-size="9" font-weight="bold" text-anchor="middle" fill="#1f2937">D1</text>
+                                <line x1="830" y1="320" x2="850" y2="320" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- D1 位置移动指示组 (残影 + 箭头) -->
+                            <g id="ghost-D1-sch" class="diff-position-indicator hidden">
+                                <!-- 残影：旧位置 (左侧40像素处) -->
+                                <g class="diff-ghost">
+                                    <polygon points="810,300 810,340 840,320" fill="transparent" stroke="#9CA3AF" stroke-width="1.5" />
+                                    <line x1="840" y1="300" x2="840" y2="340" stroke="#9CA3AF" stroke-width="1.5" />
+                                    <line x1="845" y1="305" x2="855" y2="295" stroke="#9CA3AF" stroke-width="1" />
+                                    <line x1="848" y1="310" x2="858" y2="300" stroke="#9CA3AF" stroke-width="1" />
+                                    <polygon points="855,295 858,300 852,298" fill="#9CA3AF" />
+                                    <polygon points="858,300 861,305 855,303" fill="#9CA3AF" />
+                                    <text x="825" y="295" font-size="9" font-weight="bold" text-anchor="middle" fill="#9CA3AF">D1</text>
+                                </g>
+                                <!-- 位移箭头：从旧位置指向新位置 -->
+                                <line class="diff-arrow" x1="845" y1="320" x2="835" y2="320" stroke="#F59E0B" stroke-width="2" />
+                            </g>
+
+                            <!-- ========== J1 排针接口 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="J1" data-type="J">
+                                <rect x="80" y="580" width="60" height="100" fill="white" stroke="#1f2937" stroke-width="2" />
+                                <text x="110" y="635" font-size="11" font-weight="bold" text-anchor="middle" fill="#1f2937">J1</text>
+                                <!-- 4个引脚 -->
+                                <circle cx="95" cy="600" r="4" fill="white" stroke="#1f2937" stroke-width="1.5" />
+                                <circle cx="125" cy="600" r="4" fill="white" stroke="#1f2937" stroke-width="1.5" />
+                                <circle cx="95" cy="630" r="4" fill="white" stroke="#1f2937" stroke-width="1.5" />
+                                <circle cx="125" cy="630" r="4" fill="white" stroke="#1f2937" stroke-width="1.5" />
+                                <circle cx="95" cy="660" r="4" fill="white" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="70" y="605" font-size="7" text-anchor="end" fill="#6b7280">VCC</text>
+                                <text x="70" y="635" font-size="7" text-anchor="end" fill="#6b7280">SWD</text>
+                                <text x="70" y="665" font-size="7" text-anchor="end" fill="#6b7280">GND</text>
+                            </g>
+
+                            <!-- ========== "蜘蛛网"式连接线 ========== -->
+                            <!-- VCC 3.3V 分支到各器件 -->
+                            <path class="eda-wire" d="M 180 150 L 220 150 L 220 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
+                            <circle cx="220" cy="50" r="3" fill="#dc2626" />
+                            
+                            <!-- VCC 到 C1 -->
+                            <path class="eda-wire" d="M 240 315 L 240 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
+                            <circle cx="240" cy="50" r="3" fill="#dc2626" />
+                            
+                            <!-- VCC 到 C2 -->
+                            <path class="eda-wire" d="M 240 395 L 240 420 L 220 420 L 220 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
+                            
+                            <!-- VCC 到 MCU -->
+                            <path class="eda-wire" d="M 330 290 L 300 290 L 300 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
+                            <circle cx="300" cy="50" r="3" fill="#dc2626" />
+                            <text x="305" y="70" font-size="8" fill="#dc2626">VDD</text>
+                            
+                            <!-- VCC 到 R3 -->
+                            <path class="eda-wire" d="M 730 320 L 700 320 L 700 200 L 500 200 L 500 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
+                            
+                            <!-- VCC 到 LED -->
+                            <path class="eda-wire" d="M 830 320 L 850 320 L 850 200 L 550 200 L 550 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
+                            
+                            <!-- VCC 到 J1 -->
+                            <path class="eda-wire" d="M 95 600 L 95 580 L 95 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
+
+                            <!-- GND 网络 -->
+                            <!-- GND 到 C1 -->
+                            <path class="eda-wire" d="M 255 315 L 255 760" stroke="#16a34a" stroke-width="1.5" fill="none" />
+                            <circle cx="255" cy="760" r="3" fill="#16a34a" />
+                            
+                            <!-- GND 到 C2 -->
+                            <path class="eda-wire" d="M 255 395 L 255 500 L 280 500 L 280 760" stroke="#16a34a" stroke-width="1.5" fill="none" />
+                            
+                            <!-- GND 到 MCU -->
+                            <path class="eda-wire" d="M 330 500 L 310 500 L 310 760" stroke="#16a34a" stroke-width="1.5" fill="none" />
+                            <circle cx="310" cy="760" r="3" fill="#16a34a" />
+                            <text x="315" y="745" font-size="8" fill="#16a34a">VSS</text>
+                            
+                            <!-- GND 到 R1 -->
+                            <path class="eda-wire" d="M 700 420 L 700 600 L 400 600 L 400 760" stroke="#16a34a" stroke-width="1.5" fill="none" />
+                            
+                            <!-- GND 到 R2 -->
+                            <path class="eda-wire" d="M 600 480 L 600 650 L 350 650 L 350 760" stroke="#16a34a" stroke-width="1.5" fill="none" />
+                            
+                            <!-- GND 到 J1 -->
+                            <path class="eda-wire" d="M 95 660 L 95 760" stroke="#16a34a" stroke-width="1.5" fill="none" />
+
+                            <!-- 信号线 -->
+                            <!-- MCU 到晶振 -->
+                            <path class="eda-wire" d="M 570 305 L 600 305" stroke="#4b5563" stroke-width="1.5" fill="none" />
+                            <path class="eda-wire" d="M 570 315 L 600 315" stroke="#4b5563" stroke-width="1.5" fill="none" />
+                            <circle cx="585" cy="305" r="2.5" fill="#4b5563" />
+                            <circle cx="585" cy="315" r="2.5" fill="#4b5563" />
+                            
+                            <!-- MCU 到 R1 -->
+                            <path class="eda-wire" d="M 570 420 L 600 420" stroke="#4b5563" stroke-width="1.5" fill="none" />
+                            
+                            <!-- MCU 到 R2 -->
+                            <path class="eda-wire" d="M 570 480 L 600 480" stroke="#4b5563" stroke-width="1.5" fill="none" />
+                            
+                            <!-- MCU 到 LED (通过R3) -->
+                            <path class="eda-wire" d="M 570 320 L 650 320 L 650 320 L 730 320" stroke="#f59e0b" stroke-width="1.5" fill="none" />
+                            <path class="eda-wire" d="M 810 320 L 830 320" stroke="#f59e0b" stroke-width="1.5" fill="none" />
+                            
+                            <!-- MCU 到 J1 (SWD) -->
+                            <path class="eda-wire" d="M 330 350 L 200 350 L 200 630 L 95 630" stroke="#8b5cf6" stroke-width="1.5" fill="none" stroke-dasharray="4,2" />
+                            <text x="210" y="345" font-size="8" fill="#8b5cf6">SWDIO</text>
+
+                        </svg>
+                        <div class="absolute bottom-4 right-6 text-[11px] text-gray-300 pointer-events-none uppercase tracking-widest font-bold">
+                            Schematic Editor V2.1
+                        </div>
+                    </div>
+
+                    <!-- 【PCB】SVG 容器 - V2.1 专业修复版 -->
+                    <div id="canvas-pcb" class="w-[1000px] h-[800px] flex items-center justify-center bg-gray-50 relative hidden">
+                        <svg class="w-full h-full" viewBox="0 0 1000 800" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <marker id="arrowhead-pcb" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                    <polygon points="0 0, 10 3.5, 0 7" fill="#F59E0B" />
+                                </marker>
+                            </defs>
+                            <!-- 板框 -->
+                            <rect x="50" y="50" width="900" height="700" rx="8" fill="#0f172a" stroke="#334155" stroke-width="3" />
+                            <rect x="60" y="60" width="880" height="680" rx="4" fill="#1e293b" opacity="0.5" />
+
+                            <!-- ========== U1 MCU LQFP-64 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="U1" data-type="Footprint">
+                                <rect x="350" y="280" width="160" height="160" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="430" y="365" font-size="12" font-weight="bold" text-anchor="middle" fill="#94a3b8">U1</text>
+                                <!-- 左侧焊盘 16个 -->
+                                <rect x="340" y="285" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="295" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="305" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="315" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="325" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="335" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="345" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="355" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="365" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="375" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="385" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="395" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="405" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="415" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="340" y="425" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <!-- 右侧焊盘 16个 -->
+                                <rect x="510" y="285" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="295" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="305" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="315" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="325" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="335" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="345" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="355" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="365" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="375" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="385" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="395" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="405" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="415" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                                <rect x="510" y="425" width="10" height="4" fill="#fbbf24" rx="0.5" />
+                            </g>
+
+                            <!-- ========== U2 LDO SOT-223 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="U2" data-type="Footprint">
+                                <rect x="100" y="140" width="50" height="40" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="125" y="165" font-size="9" font-weight="bold" text-anchor="middle" fill="#94a3b8">U2</text>
+                                <rect x="90" y="145" width="10" height="6" fill="#fbbf24" rx="1" />
+                                <rect x="90" y="169" width="10" height="6" fill="#fbbf24" rx="1" />
+                                <rect x="150" y="157" width="10" height="6" fill="#fbbf24" rx="1" />
+                            </g>
+
+                            <!-- ========== Y1 晶振 HC-49S ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="Y1" data-type="Footprint">
+                                <rect x="620" y="290" width="60" height="25" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="650" y="307" font-size="9" font-weight="bold" text-anchor="middle" fill="#94a3b8">Y1</text>
+                                <rect x="610" y="297" width="10" height="11" fill="#fbbf24" rx="1" />
+                                <rect x="680" y="297" width="10" height="11" fill="#fbbf24" rx="1" />
+                            </g>
+
+                            <!-- ========== R1 0603 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="R1" data-type="Footprint">
+                                <rect x="620" y="410" width="30" height="12" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="635" y="405" font-size="8" font-weight="bold" text-anchor="middle" fill="#94a3b8">R1</text>
+                                <rect x="610" y="413" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                                <rect x="650" y="413" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                            </g>
+
+                            <!-- ========== R2 0603 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="R2" data-type="Footprint">
+                                <rect x="620" y="470" width="30" height="12" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="635" y="465" font-size="8" font-weight="bold" text-anchor="middle" fill="#94a3b8">R2</text>
+                                <rect x="610" y="473" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                                <rect x="650" y="473" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                            </g>
+
+                            <!-- ========== R3 0603 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="R3" data-type="Footprint">
+                                <rect x="760" y="310" width="30" height="12" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="775" y="305" font-size="8" font-weight="bold" text-anchor="middle" fill="#94a3b8">R3</text>
+                                <rect x="750" y="313" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                                <rect x="790" y="313" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                            </g>
+
+                            <!-- ========== C1 0603 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="C1" data-type="Footprint">
+                                <rect x="260" y="300" width="25" height="12" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="272" y="295" font-size="8" font-weight="bold" text-anchor="middle" fill="#94a3b8">C1</text>
+                                <rect x="250" y="303" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                                <rect x="285" y="303" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                            </g>
+
+                            <!-- ========== C2 0805 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="C2" data-type="Footprint">
+                                <rect x="260" y="380" width="30" height="14" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="275" y="375" font-size="8" font-weight="bold" text-anchor="middle" fill="#94a3b8">C2</text>
+                                <rect x="250" y="384" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                                <rect x="290" y="384" width="10" height="6" fill="#e2e8f0" rx="0.5" />
+                            </g>
+
+                            <!-- ========== C3 0402 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="C3" data-type="Footprint">
+                                <rect x="720" y="290" width="18" height="8" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="729" y="285" font-size="7" font-weight="bold" text-anchor="middle" fill="#94a3b8">C3</text>
+                                <rect x="713" y="291" width="7" height="6" fill="#e2e8f0" rx="0.3" />
+                                <rect x="738" y="291" width="7" height="6" fill="#e2e8f0" rx="0.3" />
+                            </g>
+
+                            <!-- ========== D1 LED 0805 ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="D1" data-type="Footprint">
+                                <rect x="860" y="310" width="30" height="14" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="875" y="305" font-size="8" font-weight="bold" text-anchor="middle" fill="#94a3b8">D1</text>
+                                <rect x="850" y="314" width="10" height="6" fill="#fbbf24" rx="0.5" />
+                                <rect x="890" y="314" width="10" height="6" fill="#fbbf24" rx="0.5" />
+                            </g>
+
+                            <!-- D1 位置移动指示组 (残影 + 箭头) -->
+                            <g id="ghost-D1-pcb" class="diff-position-indicator hidden">
+                                <!-- 残影：旧位置 (左侧40像素处) -->
+                                <g class="diff-ghost">
+                                    <rect x="820" y="310" width="30" height="14" fill="none" stroke="#9CA3AF" stroke-width="1" />
+                                    <text x="835" y="305" font-size="8" font-weight="bold" text-anchor="middle" fill="#9CA3AF">D1</text>
+                                    <rect x="810" y="314" width="10" height="6" fill="transparent" stroke="#9CA3AF" rx="0.5" />
+                                    <rect x="850" y="314" width="10" height="6" fill="transparent" stroke="#9CA3AF" rx="0.5" />
+                                </g>
+                                <!-- 位移箭头：从旧位置指向新位置 -->
+                                <line class="diff-arrow" x1="855" y1="317" x2="845" y2="317" stroke="#F59E0B" stroke-width="2" marker-end="url(#arrowhead-pcb)" />
+                            </g>
+
+                            <!-- ========== J1 排针 4P ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="J1" data-type="Footprint">
+                                <rect x="100" y="600" width="50" height="80" fill="none" stroke="#94a3b8" stroke-width="1" />
+                                <text x="125" y="645" font-size="9" font-weight="bold" text-anchor="middle" fill="#94a3b8">J1</text>
+                                <!-- 通孔焊盘 -->
+                                <circle cx="115" cy="620" r="5" fill="#fbbf24" stroke="#475569" stroke-width="1" />
+                                <circle cx="135" cy="620" r="5" fill="#fbbf24" stroke="#475569" stroke-width="1" />
+                                <circle cx="115" cy="645" r="5" fill="#fbbf24" stroke="#475569" stroke-width="1" />
+                                <circle cx="135" cy="645" r="5" fill="#fbbf24" stroke="#475569" stroke-width="1" />
+                                <circle cx="115" cy="670" r="5" fill="#fbbf24" stroke="#475569" stroke-width="1" />
+                            </g>
+
+                            <!-- ========== Top Layer 走线 (红色) ========== -->
+                            <!-- VCC 主干 -->
+                            <path d="M 160 160 L 200 160 L 200 120 L 300 120 L 300 285" stroke="#ef4444" stroke-width="3" fill="none" opacity="0.9" />
+                            <path d="M 300 120 L 500 120 L 500 285" stroke="#ef4444" stroke-width="3" fill="none" opacity="0.9" />
+                            <path d="M 500 120 L 750 120 L 750 313" stroke="#ef4444" stroke-width="2" fill="none" opacity="0.9" />
+                            <path d="M 750 120 L 850 120 L 850 314" stroke="#ef4444" stroke-width="2" fill="none" opacity="0.9" />
+                            
+                            <!-- VCC 到 C1 -->
+                            <path d="M 200 160 L 200 250 L 250 250 L 250 303" stroke="#ef4444" stroke-width="2" fill="none" opacity="0.9" />
+                            <!-- VCC 到 C2 -->
+                            <path d="M 200 250 L 200 350 L 250 350 L 250 384" stroke="#ef4444" stroke-width="2" fill="none" opacity="0.9" />
+                            
+                            <!-- 信号线到晶振 -->
+                            <path d="M 520 300 L 570 300 L 570 302 L 610 302" stroke="#ef4444" stroke-width="1.5" fill="none" opacity="0.8" />
+                            <path d="M 520 315 L 570 315 L 570 302" stroke="#ef4444" stroke-width="1.5" fill="none" opacity="0.8" />
+                            
+                            <!-- 信号线到 R1 -->
+                            <path d="M 520 380 L 570 380 L 570 416 L 610 416" stroke="#ef4444" stroke-width="1.5" fill="none" opacity="0.8" />
+                            
+                            <!-- LED 驱动线 -->
+                            <path d="M 520 340 L 600 340 L 600 316 L 750 316" stroke="#f59e0b" stroke-width="2" fill="none" opacity="0.9" />
+                            <path d="M 800 316 L 850 316" stroke="#f59e0b" stroke-width="2" fill="none" opacity="0.9" />
+
+                            <!-- ========== Bottom Layer 走线 (蓝色虚线) ========== -->
+                            <!-- GND 网络 -->
+                            <path d="M 115 670 L 115 720 L 400 720 L 400 440 L 610 440 L 610 476" stroke="#3b82f6" stroke-width="2" fill="none" stroke-dasharray="5,3" opacity="0.8" />
+                            <path d="M 400 720 L 400 750" stroke="#3b82f6" stroke-width="2" fill="none" stroke-dasharray="5,3" opacity="0.8" />
+                            <path d="M 295 306 L 295 720" stroke="#3b82f6" stroke-width="2" fill="none" stroke-dasharray="5,3" opacity="0.8" />
+                            <path d="M 295 390 L 295 500 L 350 500" stroke="#3b82f6" stroke-width="2" fill="none" stroke-dasharray="5,3" opacity="0.8" />
+                            
+                            <!-- SWD 信号 -->
+                            <path d="M 340 365 L 250 365 L 250 645 L 110 645" stroke="#8b5cf6" stroke-width="1.5" fill="none" stroke-dasharray="4,2" opacity="0.7" />
+
+                            <!-- 过孔 -->
+                            <circle cx="200" cy="250" r="4" fill="#fbbf24" stroke="#475569" stroke-width="1" />
+                            <circle cx="400" cy="500" r="4" fill="#fbbf24" stroke="#475569" stroke-width="1" />
+                            <circle cx="570" cy="302" r="3" fill="#fbbf24" stroke="#475569" stroke-width="1" />
+
+                        </svg>
+                        <div class="absolute bottom-4 right-6 text-[11px] text-gray-500 pointer-events-none uppercase tracking-widest font-bold">
+                            PCB 2D Engine V2.1
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 缩放信息显示 -->
+                <div id="zoom-info" class="zoom-info">
+                    <span id="zoom-level">100%</span>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 右下角属性卡片 -->
+    <div id="comp-property-popover" class="fixed bottom-6 right-6 w-[360px] bg-white shadow-2xl rounded-xl border border-gray-200 z-50 transition-all duration-300 transform translate-y-2 opacity-0 hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-info-circle text-blue-600"></i>
+                <span class="font-bold text-gray-700 text-sm">器件属性</span>
+            </div>
+            <i id="popover-close" class="fas fa-times text-gray-400 hover:text-gray-600 cursor-pointer text-xs transition-colors"></i>
+        </div>
+        <div class="p-4">
+            <div class="grid grid-cols-2 gap-y-3">
+                <div>
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">位号 (RefDes)</div>
+                    <div id="prop-refdes" class="text-gray-900 text-sm font-medium">-</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">物料编码 (Item#)</div>
+                    <div id="prop-itemnum" class="text-gray-900 text-sm font-medium">-</div>
+                </div>
+                <div class="col-span-2">
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">物料型号 (Part Number)</div>
+                    <div id="prop-partnum" class="text-gray-900 text-sm font-medium">-</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">封装 (Footprint)</div>
+                    <div id="prop-footprint" class="text-gray-900 text-sm font-medium">-</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">状态 (Status)</div>
+                    <div id="prop-status-container" class="flex">
+                        <span id="prop-status" class="px-2 py-0.5 rounded text-xs font-medium">-</span>
+                    </div>
+                </div>
+                <div class="col-span-2">
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">描述 (Description)</div>
+                    <div id="prop-desc" class="text-gray-700 text-xs leading-relaxed">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="px-4 py-3 bg-gray-50 rounded-b-xl border-t border-gray-100 flex justify-end">
+            <div class="text-blue-600 hover:text-blue-800 text-sm font-medium cursor-pointer transition-colors flex items-center">
+                查看物料详情 <i class="fas fa-chevron-right ml-1.5 text-[10px]"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模块化 JavaScript 加载顺序：数据 -> 引擎 -> 控制器 -->
+    <script src="./config.data.js"></script>
+    <script src="./core.engine.js"></script>
+    <script src="./app.controller.js"></script>
+</body>
+</html>
