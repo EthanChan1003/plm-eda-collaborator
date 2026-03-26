@@ -1450,21 +1450,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 步骤 4：调用引擎生成 PDF
         const element = document.getElementById('pdf-report-template');
-        element.classList.remove('hidden'); // 短暂显示以便捕捉
+        const body = document.body;
+
+        // 【关键修复】短暂提权并解除视口限制
+        element.classList.remove('hidden', 'z-[-10]');
+        element.classList.add('z-[9999]'); // 提到最顶层
+        body.classList.remove('overflow-hidden', 'h-screen'); // 放开高度限制，防止被截断
 
         const opt = {
             margin: 0,
             filename: `硬件评审报告_${AppState.currentVersion}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
+            html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, // scrollY: 0 防止滚动条导致的错位
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
         html2pdf().set(opt).from(element).save().then(() => {
-            element.classList.add('hidden'); // 导出后恢复隐藏
+            // 导出成功后恢复原状
+            element.classList.add('hidden', 'z-[-10]');
+            element.classList.remove('z-[9999]');
+            body.classList.add('overflow-hidden', 'h-screen');
         }).catch(err => {
             console.error('PDF 导出失败:', err);
-            element.classList.add('hidden');
+            // 导出报错也必须恢复原状
+            element.classList.add('hidden', 'z-[-10]');
+            element.classList.remove('z-[9999]');
+            body.classList.add('overflow-hidden', 'h-screen');
             alert('PDF 导出失败，请重试');
         });
     }
