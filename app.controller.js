@@ -1398,4 +1398,74 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始化版本选择器
     initGlobalVersionSelect();
     updateCompareVersionOptions();
+
+    // ============ PDF 评审报告导出功能 ============
+    const btnExportPdf = document.getElementById('btn-export-pdf');
+    if (btnExportPdf) {
+        btnExportPdf.addEventListener('click', generatePDFReport);
+    }
+
+    function generatePDFReport() {
+        // 步骤 1：数据计算 - 过滤当前版本的批注
+        const versionAnnotations = annotations.filter(a => a.version === AppState.currentVersion);
+        const totalCount = versionAnnotations.length;
+        const openCount = versionAnnotations.filter(a => a.status === 'open').length;
+        const resolvedCount = versionAnnotations.filter(a => a.status === 'resolved').length;
+
+        // 步骤 2：数据注入
+        document.getElementById('report-version').textContent = AppState.currentVersion;
+        document.getElementById('report-date').textContent = new Date().toLocaleDateString('zh-CN');
+        document.getElementById('report-total').textContent = totalCount;
+        document.getElementById('report-open').textContent = openCount;
+        document.getElementById('report-resolved').textContent = resolvedCount;
+
+        // 步骤 3：表格生成
+        const tableBody = document.getElementById('report-table-body');
+        tableBody.innerHTML = '';
+
+        if (versionAnnotations.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="p-4 text-center text-gray-500">当前版本暂无批注</td>
+                </tr>
+            `;
+        } else {
+            versionAnnotations.forEach(note => {
+                const viewLabel = note.viewType === 'schematic' ? '原理图' : 'PCB';
+                const statusClass = note.status === 'open' ? 'text-red-600' : 'text-green-600';
+                const statusText = note.status === 'open' ? '待解决' : '已解决';
+
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-200 hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="p-2 font-medium">#${note.id}</td>
+                    <td class="p-2">${viewLabel}</td>
+                    <td class="p-2 font-mono text-xs">${note.targetRef || '-'}</td>
+                    <td class="p-2">${note.text}</td>
+                    <td class="p-2 ${statusClass} font-medium">${statusText}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // 步骤 4：调用引擎生成 PDF
+        const element = document.getElementById('pdf-report-template');
+        element.classList.remove('hidden'); // 短暂显示以便捕捉
+
+        const opt = {
+            margin: 0,
+            filename: `硬件评审报告_${AppState.currentVersion}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(element).save().then(() => {
+            element.classList.add('hidden'); // 导出后恢复隐藏
+        }).catch(err => {
+            console.error('PDF 导出失败:', err);
+            element.classList.add('hidden');
+            alert('PDF 导出失败，请重试');
+        });
+    }
 });

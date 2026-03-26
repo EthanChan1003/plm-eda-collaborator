@@ -31,7 +31,7 @@ const versionedComponentData = {
         'J1': { RefDes: 'J1', PartNumber: 'B4B-PH-K-S', Footprint: 'PH-4P', ItemNumber: 'CONN-PH-4P-601445', Description: 'JST PH Series 4-Pin Connector 2.0mm Pitch, SWD调试接口', Status: '提交' }
     },
     'V2.1': {
-        'U1': { RefDes: 'U1', PartNumber: 'STM32F103RBT6', Footprint: 'LQFP-64', ItemNumber: 'IC-MCU-ARM-100293', Description: 'ARM Cortex-M3 MCU, 128KB Flash, 72MHz, LQFP-64', Status: '归档' },
+        'U1': { RefDes: 'U1', PartNumber: 'TEST', Footprint: 'LQFP-64', ItemNumber: 'IC-MCU-ARM-100293', Description: 'ARM Cortex-M3 MCU, 128KB Flash, 72MHz, LQFP-64', Status: '归档' },
         'U2': { RefDes: 'U2', PartNumber: 'AMS1117-3.3', Footprint: 'SOT-223', ItemNumber: 'IC-REG-LDO-100456', Description: '1A Low Dropout Voltage Regulator, 3.3V Fixed Output', Status: '归档' },
         'R1': { RefDes: 'R1', PartNumber: 'RC0603FR-0720KL', Footprint: '0603', ItemNumber: 'RES-STD-20K-201939', Description: 'Thick Film Resistor 20KΩ 1% 1/10W 0603 SMD', Status: '归档' },
         'R2': { RefDes: 'R2', PartNumber: 'RC0603FR-0710KL', Footprint: '0603', ItemNumber: 'RES-STD-10K-201938', Description: 'Thick Film Resistor 10KΩ 1% 1/10W 0603 SMD', Status: '提交' },
