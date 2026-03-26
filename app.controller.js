@@ -33,8 +33,150 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolZoomOut = document.getElementById('tool-zoom-out');
     const toolReset = document.getElementById('tool-reset');
 
+    // 全局版本选择器
+    const globalVersionSelect = document.getElementById('global-version-select');
+    const versionCompareSelect = document.getElementById('version-compare');
+
+    // 气泡元素
+    const annotationBubble = document.getElementById('annotation-bubble');
+    const bubbleContent = document.getElementById('bubble-content');
+    const closeBubbleBtn = document.getElementById('close-bubble');
+
     // 初始化引擎
     initEngine(canvasWrapper, canvasTransform);
+
+    // ============ 批注权限控制 ============
+    function updateAnnotationPermissions() {
+        const isLatest = AppState.currentVersion === AppState.latestVersion;
+        // 禁用/启用批注按钮
+        if (toolRect) {
+            toolRect.disabled = !isLatest;
+        }
+    }
+
+    // ============ 全局版本切换 ============
+    function switchGlobalVersion(newVersion) {
+        AppState.currentVersion = newVersion;
+
+        // 1. 同步画布图元显示/隐藏
+        syncCanvasComponents();
+
+        // 2. 重新渲染结构树
+        renderTreeContent();
+
+        // 3. 重新渲染批注列表（按版本过滤）
+        initPresetAnnotations();
+        renderPresetAnnotations();
+
+        // 4. 重新计算版本差异
+        if (currentTab === 'diff' && versionCompareSelect) {
+            const compareVersion = versionCompareSelect.value;
+            calculateVersionDiff(AppState.currentVersion, compareVersion);
+            renderDiffContent();
+            applyDiffHighlight();
+        }
+
+        // 5. 更新权限
+        updateAnnotationPermissions();
+
+        // 6. 更新对比版本下拉框选项（排除当前版本）
+        updateCompareVersionOptions();
+    }
+
+    // 同步画布图元显示状态
+    function syncCanvasComponents() {
+        const currentData = getCurrentComponentData();
+        const allRefs = ['U1', 'U2', 'R1', 'R2', 'R3', 'C1', 'C2', 'C3', 'C4', 'Y1', 'D1', 'J1'];
+
+        allRefs.forEach(ref => {
+            const components = document.querySelectorAll(`.eda-component[data-ref="${ref}"]`);
+            const existsInVersion = ref in currentData;
+
+            components.forEach(comp => {
+                if (existsInVersion) {
+                    comp.style.display = '';
+                    // V2.1 中 Y1 位置移动
+                    if (ref === 'Y1' && AppState.currentVersion === 'V2.1') {
+                        // 移动后的坐标
+                        if (comp.closest('#canvas-schematic')) {
+                            comp.setAttribute('transform', 'translate(-20, 0)');
+                        } else if (comp.closest('#canvas-pcb')) {
+                            comp.setAttribute('transform', 'translate(-20, 0)');
+                        }
+                    } else if (ref === 'Y1') {
+                        comp.setAttribute('transform', '');
+                    }
+                } else {
+                    comp.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // 更新对比版本下拉框选项
+    function updateCompareVersionOptions() {
+        if (!versionCompareSelect) return;
+        const currentVal = versionCompareSelect.value;
+        const allVersions = ['V1.0', 'V2.0', 'V2.1'];
+
+        versionCompareSelect.innerHTML = allVersions
+            .filter(v => v !== AppState.currentVersion)
+            .map(v => `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${v}</option>`)
+            .join('');
+    }
+
+    // 全局版本选择器事件
+    if (globalVersionSelect) {
+        globalVersionSelect.addEventListener('change', (e) => {
+            switchGlobalVersion(e.target.value);
+        });
+    }
+
+    // 对比版本选择器事件
+    if (versionCompareSelect) {
+        versionCompareSelect.addEventListener('change', () => {
+            const compareVersion = versionCompareSelect.value;
+            calculateVersionDiff(AppState.currentVersion, compareVersion);
+            renderDiffContent();
+            applyDiffHighlight();
+        });
+    }
+
+    // ============ 批注气泡系统 ============
+    function showAnnotationBubble(annotationId) {
+        const annotation = annotations.find(a => a.id === annotationId);
+        if (!annotation || !annotation.element) return;
+
+        // 定位气泡
+        const rect = annotation.element.getBoundingClientRect();
+        const bubbleX = rect.right + 10;
+        const bubbleY = rect.top;
+
+        annotationBubble.style.left = bubbleX + 'px';
+        annotationBubble.style.top = bubbleY + 'px';
+
+        // 填充内容
+        bubbleContent.textContent = annotation.text;
+
+        // 显示气泡
+        annotationBubble.classList.remove('hidden');
+    }
+
+    function hideAnnotationBubble() {
+        annotationBubble.classList.add('hidden');
+    }
+
+    // 关闭气泡按钮
+    if (closeBubbleBtn) {
+        closeBubbleBtn.addEventListener('click', hideAnnotationBubble);
+    }
+
+    // 点击画布其他区域隐藏气泡
+    canvasWrapper.addEventListener('click', (e) => {
+        if (!e.target.closest('.annotation-box') && !e.target.closest('#annotation-bubble')) {
+            hideAnnotationBubble();
+        }
+    });
 
     // ============ 工具模式切换 ============
     function setToolMode(mode) {
@@ -286,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 高亮批注
+    // 高亮批注（带气泡联动）
     function highlightAnnotation(annotationId, breathing = false) {
         // 清除所有高亮
         document.querySelectorAll('.annotation-box').forEach(box => {
@@ -312,6 +454,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 noteItem.classList.add('active');
                 noteItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+
+            // 显示气泡
+            showAnnotationBubble(annotationId);
         }
     }
 
@@ -474,6 +619,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 渲染批注列表 ============
     function renderNotesContent() {
+        // 权限控制：非最新版本隐藏删除按钮
+        const isLatest = AppState.currentVersion === AppState.latestVersion;
+
         // 同步更新画布上所有批注框的样式类
         annotations.forEach(annotation => {
             if (annotation.element) {
@@ -485,26 +633,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        if (annotations.length === 0) {
+        // 过滤当前版本的批注
+        const versionAnnotations = annotations.filter(a => a.version === AppState.currentVersion);
+
+        if (versionAnnotations.length === 0) {
             tabContent.innerHTML = `
                 <div class="flex flex-col items-center justify-center h-full text-gray-400">
                     <i class="fas fa-comment-slash text-3xl mb-2"></i>
                     <span class="text-xs">暂无批注</span>
-                    <span class="text-[10px] mt-1">点击工具栏矩形框按钮添加批注</span>
+                    ${isLatest ? '<span class="text-[10px] mt-1">点击工具栏矩形框按钮添加批注</span>' : '<span class="text-[10px] mt-1">历史版本不可新增批注</span>'}
                 </div>
             `;
             return;
         }
 
         let notesHTML = '<div class="space-y-2 p-2">';
-        
-        annotations.slice().reverse().forEach(note => {
+
+        versionAnnotations.slice().reverse().forEach(note => {
             const viewLabel = note.viewType === 'schematic' ? '原理图' : 'PCB';
             const isResolved = note.status === 'resolved';
             const statusIcon = isResolved ? 'fa-check-circle text-green-500' : 'fa-circle text-blue-500';
             const cardBgClass = isResolved ? 'bg-gray-50' : 'bg-white';
             const textClass = isResolved ? 'line-through text-gray-400' : 'text-gray-600';
-            
+
+            // 删除按钮：仅最新版本显示
+            const deleteBtn = isLatest ?
+                `<i class="fas fa-trash text-xs cursor-pointer text-gray-400 hover:text-red-500 delete-btn" onclick="event.stopPropagation(); deleteAnnotation(${note.id})" title="删除批注"></i>` : '';
+
             notesHTML += `
                 <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass}" data-note-id="${note.id}">
                     <div class="flex items-center justify-between mb-1">
@@ -516,14 +671,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="flex items-center space-x-2">
                             <span class="text-[10px] text-gray-400">${note.time}</span>
                             <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id})" title="${isResolved ? '已解决，点击标记为待处理' : '待处理，点击标记为已解决'}"></i>
-                            <i class="fas fa-trash text-xs cursor-pointer text-gray-400 hover:text-red-500 delete-btn" onclick="event.stopPropagation(); deleteAnnotation(${note.id})" title="删除批注"></i>
+                            ${deleteBtn}
                         </div>
                     </div>
                     <div class="text-xs ${textClass} mt-1 line-clamp-2">${note.text}</div>
                 </div>
             `;
         });
-        
+
         notesHTML += '</div>';
         tabContent.innerHTML = notesHTML;
 

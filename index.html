@@ -43,15 +43,22 @@
             <!-- 面板顶部：结构树专有控制区 -->
             <div id="panel-top-search" class="border-b border-gray-100 bg-gray-50/50">
                 <div class="p-3 pb-2">
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-gray-400 text-xs"></i>
+                    <div class="flex space-x-2">
+                        <div class="relative flex-1">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-search text-gray-400 text-xs"></i>
+                            </div>
+                            <input type="text" id="search-input"
+                                   class="block w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-md bg-white text-xs placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                   placeholder="搜索位号 / 网络名..."
+                                   autocomplete="off">
+                            <ul id="search-dropdown" class="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto hidden"></ul>
                         </div>
-                        <input type="text" id="search-input"
-                               class="block w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-md bg-white text-xs placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all" 
-                               placeholder="搜索位号 / 网络名..."
-                               autocomplete="off">
-                        <ul id="search-dropdown" class="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-48 overflow-y-auto hidden"></ul>
+                        <select id="global-version-select" class="w-20 px-2 py-1.5 text-[11px] border border-gray-200 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="V1.0">V1.0</option>
+                            <option value="V2.0">V2.0</option>
+                            <option value="V2.1" selected>V2.1</option>
+                        </select>
                     </div>
                 </div>
                 <div class="px-3 pb-3">
@@ -64,21 +71,13 @@
 
             <!-- 面板顶部：版本对比控制区 -->
             <div id="panel-top-diff" class="p-4 border-b border-gray-100 bg-gray-50/50 hidden">
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="space-y-1">
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase">基准版本</label>
-                        <select id="version-base" class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            <option value="V1.0">V1.0</option>
-                            <option value="V2.0" selected>V2.0</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase">对比版本</label>
-                        <select id="version-compare" class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            <option value="V2.0" selected>V2.0</option>
-                            <option value="V2.1">V2.1</option>
-                        </select>
-                    </div>
+                <div class="space-y-1">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase">与历史版本对比</label>
+                    <select id="version-compare" class="block w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="V1.0">V1.0</option>
+                        <option value="V2.0" selected>V2.0</option>
+                        <option value="V2.1">V2.1</option>
+                    </select>
                 </div>
             </div>
 
@@ -696,6 +695,18 @@
                 查看物料详情 <i class="fas fa-chevron-right ml-1.5 text-[10px]"></i>
             </div>
         </div>
+    </div>
+
+    <!-- 批注气泡容器 -->
+    <div id="annotation-bubble" class="hidden absolute z-[100] bg-white rounded-lg shadow-xl border border-gray-200 p-3 max-w-xs">
+        <div class="flex items-start justify-between mb-1">
+            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">评审意见</span>
+            <button id="close-bubble" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-xs"></i>
+            </button>
+        </div>
+        <div id="bubble-content" class="text-sm text-gray-700 leading-relaxed"></div>
+        <div class="absolute w-3 h-3 bg-white border-l border-b border-gray-200 transform rotate-45 -left-1.5 top-4"></div>
     </div>
 
     <!-- 模块化 JavaScript 加载顺序：数据 -> 引擎 -> 控制器 -->

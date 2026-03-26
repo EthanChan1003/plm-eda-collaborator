@@ -267,3 +267,41 @@ body {
     position: relative;
     z-index: 50;
 }
+
+/* 批注气泡样式 */
+#annotation-bubble {
+    min-width: 200px;
+    max-width: 280px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
+    animation: bubbleFadeIn 0.2s ease-out;
+}
+
+@keyframes bubbleFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-8px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+#annotation-bubble #close-bubble {
+    padding: 2px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+#annotation-bubble #close-bubble:hover {
+    background-color: #f3f4f6;
+    color: #dc2626;
+}
+
+/* 工具栏按钮禁用状态 */
+#tool-rect:disabled,
+#tool-rect[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
