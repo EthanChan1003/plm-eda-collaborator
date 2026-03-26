@@ -849,11 +849,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let notesHTML = '<div class="space-y-2 p-2">';
 
         versionAnnotations.slice().reverse().forEach(note => {
-            // 数据防御性降级：提供默认值防止渲染崩溃
-            const authorName = note.author || '系统预置';
-            const authorInitial = authorName.charAt(0);
-            const noteTime = note.time || '';
-
             const viewLabel = note.viewType === 'schematic' ? '原理图' : 'PCB';
             const isResolved = note.status === 'resolved';
             const statusIcon = isResolved ? 'fa-check-circle text-green-500' : 'fa-circle text-blue-500';
@@ -864,24 +859,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const deleteBtn = isLatest ?
                 `<i class="fas fa-trash text-xs cursor-pointer text-gray-400 hover:text-red-500 delete-btn" onclick="event.stopPropagation(); deleteAnnotation(${note.id}, '${note.version}')" title="删除批注"></i>` : '';
 
+            // 优化时间显示，去掉年份 (例如把 2026-03-26 15:00 变成 03-26 15:00)
+            const shortTime = note.time ? note.time.substring(5) : '';
+            const safeAuthor = note.author || '系统';
+
             notesHTML += `
                 <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass}" data-note-id="${note.id}" data-note-version="${note.version}">
-                    <div class="flex items-center justify-between mb-1">
-                        <div class="flex items-center space-x-2">
-                            <span class="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">${note.id}</span>
-                            <div class="flex items-center">
-                                <div class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold mr-1.5">${authorInitial}</div>
-                                <span class="font-bold text-gray-800 text-xs">${authorName}</span>
-                            </div>
-                            <span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">${viewLabel}</span>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <div class="flex items-center space-x-1.5 min-w-0">
+                            <span class="flex-shrink-0 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">${note.id}</span>
+                            <span class="font-bold text-gray-800 text-xs truncate max-w-[60px]" title="${safeAuthor}">${safeAuthor}</span>
+                            <span class="flex-shrink-0 text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">${viewLabel}</span>
                         </div>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-[10px] text-gray-400">${noteTime}</span>
-                            <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id}, '${note.version}')" title="${isResolved ? '已解决，点击标记为待处理' : '待处理，点击标记为已解决'}"></i>
+
+                        <div class="flex items-center space-x-2 flex-shrink-0 ml-1">
+                            <span class="text-[9px] text-gray-400">${shortTime}</span>
+                            <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id}, '${note.version}')" title="${isResolved ? '已解决，点击恢复' : '待处理，点击解决'}"></i>
                             ${deleteBtn}
                         </div>
                     </div>
-                    <div class="text-xs ${textClass} mt-1 line-clamp-2">${note.text}</div>
+                    <div class="text-xs ${textClass} leading-relaxed line-clamp-2">${note.text}</div>
                 </div>
             `;
         });
