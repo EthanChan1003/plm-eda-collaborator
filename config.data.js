@@ -94,41 +94,120 @@ let annotations = [];
 
 // 预置批注数据（按版本隔离，每个版本内 ID 独立从 1 开始）
 const presetAnnotations = [
+    // ============ V1.0 历史基线 ============
     {
         id: 1,
-        text: '建议增加散热过孔，目前高负载下温升过快',
-        time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
-        author: '张三',
-        viewType: 'pcb',
+        text: '【电气】U1 电源引脚缺少 0.1uF 去耦电容，可能导致系统不稳定。',
         targetRef: 'U1',
-        centerX: 430,
-        centerY: 360,
-        status: 'open',
-        version: 'V2.1'
-    },
-    {
-        id: 1,
-        text: '阻值与最新 BOM 不符，请确认是 330R 还是 1K',
-        time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
-        author: '李四',
         viewType: 'schematic',
-        targetRef: 'R3',
-        centerX: 780,
-        centerY: 320,
         status: 'resolved',
-        version: 'V2.0'
+        version: 'V1.0',
+        centerX: 250, centerY: 180,
+        author: '张工',
+        time: '2026-03-01 10:00'
     },
     {
         id: 2,
-        text: 'J1 接口丝印字号太小，生产可能模糊',
-        time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
-        author: '王五',
-        viewType: 'pcb',
+        text: '【接口】J1 定义与标准线缆不匹配，已更正线库封装。',
         targetRef: 'J1',
-        centerX: 125,
-        centerY: 640,
+        viewType: 'schematic',
+        status: 'resolved',
+        version: 'V1.0',
+        centerX: 720, centerY: 400,
+        author: '张工',
+        time: '2026-03-02 14:30'
+    },
+    {
+        id: 3,
+        text: '【工艺】C1 电解电容正负极丝印不清晰，增加白油填充指示。',
+        targetRef: 'C1',
+        viewType: 'pcb',
+        status: 'resolved',
+        version: 'V1.0',
+        centerX: 150, centerY: 120,
+        author: '李工',
+        time: '2026-03-05 09:15'
+    },
+
+    // ============ V2.0 迭代过程 ============
+    {
+        id: 1,
+        text: '【仿真】R2 上拉电阻值建议从 100K 改为 10K，以增强 I2C 总线抗干扰能力。',
+        targetRef: 'R2',
+        viewType: 'schematic',
+        status: 'resolved',
+        version: 'V2.0',
+        centerX: 450, centerY: 300,
+        author: '陈博',
+        time: '2026-03-10 16:00'
+    },
+    {
+        id: 2,
+        text: '【SI/PI】3.3V 主电源线径仅 8mil，大电流工作时压降过大，建议加粗至 20mil。',
+        targetRef: 'U2',
+        viewType: 'pcb',
         status: 'open',
-        version: 'V2.1'
+        version: 'V2.0',
+        centerX: 380, centerY: 250,
+        author: '陈博',
+        time: '2026-03-12 11:20'
+    },
+    {
+        id: 3,
+        text: '【DFM】测试点 TP5 距离板边过近（<1mm），全自动分板机可能损伤触点。',
+        targetRef: 'U1',
+        viewType: 'pcb',
+        status: 'resolved',
+        version: 'V2.0',
+        centerX: 300, centerY: 150,
+        author: '工艺王',
+        time: '2026-03-15 15:45'
+    },
+
+    // ============ V2.1 演示高潮 ============
+    {
+        id: 1,
+        text: '【散热预警】MCU 底部建议增加 3x3 散热过孔阵列并开窗，当前高负载温升模拟达 65℃。',
+        targetRef: 'U1',
+        viewType: 'schematic',
+        status: 'open',
+        version: 'V2.1',
+        centerX: 280, centerY: 200,
+        author: '散热专家',
+        time: '2026-03-26 10:00'
+    },
+    {
+        id: 2,
+        text: '【MCAD 干涉】J1 接口因外壳结构减薄，连接器高度需从 5.0mm 降至 3.5mm，否则无法扣合。',
+        targetRef: 'J1',
+        viewType: 'pcb',
+        status: 'open',
+        version: 'V2.1',
+        centerX: 650, centerY: 420,
+        author: '结构周',
+        time: '2026-03-26 11:30'
+    },
+    {
+        id: 3,
+        text: '【DFM 风险】C4 贴片电容位于 V-Cut 槽附近，分板应力可能导致陶瓷裂纹。请内移 2.0mm。',
+        targetRef: 'C4',
+        viewType: 'pcb',
+        status: 'open',
+        version: 'V2.1',
+        centerX: 120, centerY: 500,
+        author: '工艺王',
+        time: '2026-03-26 14:15'
+    },
+    {
+        id: 4,
+        text: '【AI 优化建议】识别到当前 R1/R2 选型非公司推荐物料库（AVL），建议替换为常用料号 RES-0603-10K。',
+        targetRef: 'R1',
+        viewType: 'schematic',
+        status: 'open',
+        version: 'V2.1',
+        centerX: 550, centerY: 320,
+        author: 'AI 智能评审',
+        time: '2026-03-26 15:00'
     }
 ];
 
