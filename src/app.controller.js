@@ -232,6 +232,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 .sort((a, b) => parseVersion(b) - parseVersion(a)) // 降序排列
                 .map(v => `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${v}</option>`)
                 .join('');
+            
+            // 【关键修复】如果当前没有选中的对比版本，默认选第一个（最新的历史版本）
+            if (!versionCompareSelect.value) {
+                versionCompareSelect.value = lowerVersions[0];
+            }
+            // 【关键修复】更新下拉框后，立即计算一次差异
+            calculateVersionDiff(AppState.currentVersion, versionCompareSelect.value);
         }
     }
 
@@ -464,178 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
             canvasWrapper.classList.add('cursor-grab');
         }
     });
-
-    // ============ 批注画框功能 ============
-    let isDrawing = false;
-    let currentAnnotationBox = null;
-    let drawStartX, drawStartY;
-
-    // 获取鼠标相对于当前画布的局部坐标（画布局部坐标，随变换缩放）
-    function getCanvasLocalCoordinates(clientX, clientY) {
-        const activeCanvas = currentDrawingType === 'schematic' ? canvasSchematic : canvasPcb;
-        if (!activeCanvas) return { x: 0, y: 0 };
-        const rect = activeCanvas.getBoundingClientRect();
-        return {
-            x: clientX - rect.left,
-            y: clientY - rect.top
-        };
-    }
-
-    canvasWrapper.addEventListener('mousedown', (e) => {
-        if (currentToolMode !== ToolMode.ANNOTATE) return;
-        if (e.target.closest('.annotation-box') || e.target.closest('.annotation-input-panel')) return;
-
-        isDrawing = true;
-
-        // 使用画布局部坐标（随画布变换）
-        const coords = getCanvasLocalCoordinates(e.clientX, e.clientY);
-        drawStartX = coords.x;
-        drawStartY = coords.y;
-
-        // 创建批注框
-        currentAnnotationBox = document.createElement('div');
-        currentAnnotationBox.className = 'annotation-box';
-        currentAnnotationBox.style.left = drawStartX + 'px';
-        currentAnnotationBox.style.top = drawStartY + 'px';
-        currentAnnotationBox.style.width = '0px';
-        currentAnnotationBox.style.height = '0px';
-
-        // 将批注框添加到当前画布的批注容器内（随画布变换）
-        const container = getAnnotationContainer(currentDrawingType);
-        if (container) {
-            container.appendChild(currentAnnotationBox);
-        }
-    });
-
-    canvasWrapper.addEventListener('mousemove', (e) => {
-        if (!isDrawing || !currentAnnotationBox) return;
-
-        // 使用画布局部坐标（随画布变换）
-        const coords = getCanvasLocalCoordinates(e.clientX, e.clientY);
-        const currentX = coords.x;
-        const currentY = coords.y;
-
-        const width = Math.abs(currentX - drawStartX);
-        const height = Math.abs(currentY - drawStartY);
-        const left = Math.min(currentX, drawStartX);
-        const top = Math.min(currentY, drawStartY);
-
-        currentAnnotationBox.style.left = left + 'px';
-        currentAnnotationBox.style.top = top + 'px';
-        currentAnnotationBox.style.width = width + 'px';
-        currentAnnotationBox.style.height = height + 'px';
-    });
-
-    canvasWrapper.addEventListener('mouseup', (e) => {
-        if (!isDrawing || !currentAnnotationBox) return;
-        
-        isDrawing = false;
-        const boxWidth = parseInt(currentAnnotationBox.style.width);
-        const boxHeight = parseInt(currentAnnotationBox.style.height);
-
-        // 如果框太小，直接删除
-        if (boxWidth < 20 || boxHeight < 20) {
-            currentAnnotationBox.remove();
-            currentAnnotationBox = null;
-            return;
-        }
-
-        // 显示输入面板
-        showAnnotationInputPanel(currentAnnotationBox);
-
-        // 退出批注模式，回到选择模式
-        setToolMode(ToolMode.SELECT);
-    });
-
-    // 显示批注输入面板
-    function showAnnotationInputPanel(annotationBox) {
-        const boxLeft = parseInt(annotationBox.style.left);
-        const boxTop = parseInt(annotationBox.style.top);
-        const boxWidth = parseInt(annotationBox.style.width);
-        const boxHeight = parseInt(annotationBox.style.height);
-
-        const panel = document.createElement('div');
-        panel.className = 'annotation-input-panel';
-        
-        // 考虑缩放计算面板位置
-        const panelLeft = (boxLeft + boxWidth + 10) * canvasState.scale + canvasState.translateX;
-        const panelTop = boxTop * canvasState.scale + canvasState.translateY;
-        
-        panel.style.left = panelLeft + 'px';
-        panel.style.top = panelTop + 'px';
-        panel.innerHTML = `
-            <div class="text-xs font-bold text-gray-700 mb-2">添加评审意见</div>
-            <textarea id="annotation-text" class="w-full h-20 px-2 py-1.5 border border-gray-200 rounded text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="请输入评审意见..."></textarea>
-            <div class="flex justify-end space-x-2 mt-2">
-                <button id="annotation-cancel" class="px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                <button id="annotation-save" class="px-3 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded transition-colors">保存</button>
-            </div>
-        `;
-
-        canvasWrapper.appendChild(panel);
-
-        // 聚焦输入框
-        setTimeout(() => panel.querySelector('#annotation-text').focus(), 10);
-
-        // 取消按钮
-        panel.querySelector('#annotation-cancel').addEventListener('click', () => {
-            annotationBox.remove();
-            panel.remove();
-        });
-
-        // 保存按钮
-        panel.querySelector('#annotation-save').addEventListener('click', () => {
-            const text = panel.querySelector('#annotation-text').value.trim();
-            if (text) {
-                saveAnnotation(annotationBox, text);
-            }
-            panel.remove();
-        });
-    }
-
-    // 保存批注
-    function saveAnnotation(annotationBox, text) {
-        // 使用版本级 ID 生成器获取新 ID
-        const annotationId = getNextAnnotationId(AppState.currentVersion);
-
-        // 添加角标
-        const badge = document.createElement('div');
-        badge.className = 'annotation-badge';
-        badge.textContent = annotationId;
-        annotationBox.appendChild(badge);
-
-        // 计算中心点坐标
-        const boxLeft = parseInt(annotationBox.style.left);
-        const boxTop = parseInt(annotationBox.style.top);
-        const boxWidth = parseInt(annotationBox.style.width);
-        const boxHeight = parseInt(annotationBox.style.height);
-
-        // 存储批注数据（包含视图类型、中心坐标、状态和版本）
-        const annotationData = {
-            id: annotationId,
-            text: text,
-            time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
-            author: '张三',
-            element: annotationBox,
-            viewType: currentDrawingType,  // 记录当前视图类型
-            centerX: boxLeft + boxWidth / 2,
-            centerY: boxTop + boxHeight / 2,
-            status: 'open',  // 初始状态为待处理
-            version: AppState.currentVersion  // 记录当前版本
-        };
-        annotations.push(annotationData);
-
-        // 点击批注框高亮
-        annotationBox.addEventListener('click', (e) => {
-            e.stopPropagation();
-            highlightAnnotation(annotationId);
-        });
-
-        // 更新批注列表
-        if (currentTab === 'notes') {
-            renderNotesContent();
-        }
-    }
 
     // 高亮批注（带气泡联动）
     function highlightAnnotation(annotationId, version, breathing = false) {
@@ -1119,162 +954,6 @@ document.addEventListener('DOMContentLoaded', () => {
         toolSplitView.addEventListener('click', toggleSplitView);
     }
 
-    // ============ 渲染版本差异列表 ============
-    function renderDiffContent() {
-        const typeLabels = {
-            'added': { text: '新增', color: 'bg-green-500', textColor: 'text-green-700' },
-            'modified': { text: '修改', color: 'bg-yellow-500', textColor: 'text-yellow-700' },
-            'deleted': { text: '删除', color: 'bg-red-500', textColor: 'text-red-700' },
-            'moved': { text: '位移', color: 'bg-yellow-500', textColor: 'text-yellow-700' }
-        };
-
-        let diffHTML = '<div class="space-y-2 p-2">';
-        
-        Object.keys(mockDiffData).forEach(ref => {
-            const diff = mockDiffData[ref];
-            const label = typeLabels[diff.type];
-            
-            diffHTML += `
-                <div class="diff-item flex items-start p-3 rounded-lg cursor-pointer border border-gray-100" 
-                     onclick="selectComponent('${ref}')">
-                    <div class="flex-shrink-0 mt-0.5">
-                        <div class="w-3 h-3 rounded-full ${label.color}"></div>
-                    </div>
-                    <div class="ml-3 flex-1">
-                        <div class="flex items-center space-x-2">
-                            <span class="font-bold text-gray-800 text-sm">${ref}</span>
-                            <span class="text-[10px] px-1.5 py-0.5 rounded ${label.textColor} bg-opacity-10 ${label.color.replace('bg-', 'bg-')}/10 font-medium">
-                                ${label.text}
-                            </span>
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1">${diff.desc}</div>
-                        ${(diff.type === 'modified' || diff.type === 'moved') ? `
-                            <div class="mt-2 text-xs flex items-center space-x-2">
-                                <span class="text-gray-400 line-through">${diff.oldVal}</span>
-                                <i class="fas fa-arrow-right text-gray-300 text-[10px]"></i>
-                                <span class="text-yellow-600 font-bold">${diff.newVal}</span>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-        });
-        
-        diffHTML += '</div>';
-        tabContent.innerHTML = diffHTML;
-    }
-
-    // ============ 跨视图预警系统 ============
-    function updateCrossViewWarnings() {
-        // 1. 清除当前画布中所有预警状态
-        document.querySelectorAll('.cross-view-warning').forEach(el => {
-            el.classList.remove('cross-view-warning');
-        });
-
-        // 2. 筛选跨视图的未解决批注
-        // 条件：当前版本 + 未解决状态 + 在另一个视图中创建
-        const crossViewAnnotations = annotations.filter(a =>
-            a.version === AppState.currentVersion &&
-            a.status === 'open' &&
-            a.viewType !== currentDrawingType
-        );
-
-        // 3. 为对应器件添加预警样式
-        crossViewAnnotations.forEach(annotation => {
-            const targetRef = annotation.targetRef;
-            if (!targetRef) return;
-
-            // 在当前激活的画布中查找对应器件
-            const components = document.querySelectorAll(`#canvas-${currentDrawingType} .eda-component[data-ref="${targetRef}"]`);
-            components.forEach(comp => {
-                comp.classList.add('cross-view-warning');
-            });
-        });
-    }
-
-    // ============ 渲染批注列表 ============
-    function renderNotesContent() {
-        // 保护：仅在批注页签下执行渲染，防止意外清空其他页签内容
-        if (currentTab !== 'notes') return;
-
-        // 权限控制：非最新版本隐藏删除按钮
-        const isLatest = AppState.currentVersion === AppState.latestVersion;
-
-        // 同步更新画布上所有批注框的样式类
-        annotations.forEach(annotation => {
-            if (annotation.element) {
-                if (annotation.status === 'resolved') {
-                    annotation.element.classList.add('annotation-resolved');
-                } else {
-                    annotation.element.classList.remove('annotation-resolved');
-                }
-            }
-        });
-
-        // 过滤当前版本的批注
-        const versionAnnotations = annotations.filter(a => a.version === AppState.currentVersion);
-
-        if (versionAnnotations.length === 0) {
-            tabContent.innerHTML = `
-                <div class="flex flex-col items-center justify-center h-full text-gray-400">
-                    <i class="fas fa-comment-slash text-3xl mb-2"></i>
-                    <span class="text-xs">暂无批注</span>
-                    ${isLatest ? '<span class="text-[10px] mt-1">点击工具栏矩形框按钮添加批注</span>' : '<span class="text-[10px] mt-1">历史版本不可新增批注</span>'}
-                </div>
-            `;
-            return;
-        }
-
-        let notesHTML = '<div class="space-y-2 p-2">';
-
-        versionAnnotations.slice().reverse().forEach(note => {
-            const viewLabel = note.viewType === 'schematic' ? '原理图' : 'PCB';
-            const isResolved = note.status === 'resolved';
-            const statusIcon = isResolved ? 'fa-check-circle text-green-500' : 'fa-circle text-blue-500';
-            const cardBgClass = isResolved ? 'bg-gray-50' : 'bg-white';
-            const textClass = isResolved ? 'line-through text-gray-400' : 'text-gray-600';
-
-            // 删除按钮：仅最新版本显示（传入版本信息确保准确定位）
-            const deleteBtn = isLatest ?
-                `<i class="fas fa-trash text-xs cursor-pointer text-gray-400 hover:text-red-500 delete-btn" onclick="event.stopPropagation(); deleteAnnotation(${note.id}, '${note.version}')" title="删除批注"></i>` : '';
-
-            // 优化时间显示，去掉年份 (例如把 2026-03-26 15:00 变成 03-26 15:00)
-            const shortTime = note.time ? note.time.substring(5) : '';
-            const safeAuthor = note.author || '系统';
-
-            notesHTML += `
-                <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass}" data-note-id="${note.id}" data-note-version="${note.version}">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <div class="flex items-center space-x-1.5 min-w-0">
-                            <span class="flex-shrink-0 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">${note.id}</span>
-                            <span class="font-bold text-gray-800 text-xs truncate max-w-[60px]" title="${safeAuthor}">${safeAuthor}</span>
-                            <span class="flex-shrink-0 text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">${viewLabel}</span>
-                        </div>
-
-                        <div class="flex items-center space-x-2 flex-shrink-0 ml-1">
-                            <span class="text-[9px] text-gray-400">${shortTime}</span>
-                            <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id}, '${note.version}')" title="${isResolved ? '已解决，点击恢复' : '待处理，点击解决'}"></i>
-                            ${deleteBtn}
-                        </div>
-                    </div>
-                    <div class="text-xs ${textClass} leading-relaxed line-clamp-2">${note.text}</div>
-                </div>
-            `;
-        });
-
-        notesHTML += '</div>';
-        tabContent.innerHTML = notesHTML;
-
-        // 绑定点击事件 - 使用跨视图定位（传入版本信息确保准确定位）
-        document.querySelectorAll('.note-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const noteId = parseInt(item.getAttribute('data-note-id'));
-                const noteVersion = item.getAttribute('data-note-version');
-                locateAnnotation(noteId, noteVersion);
-            });
-        });
-    }
-
     // ============ 核心公共函数：选中器件 ============
     window.selectComponent = function(refDes) {
         document.querySelectorAll('.eda-component').forEach(el => {
@@ -1553,123 +1232,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ============ 渲染树内容 ============
-    function renderTreeContent() {
-        if (currentDrawingType === 'schematic') {
-            canvasSchematic.classList.remove('hidden');
-            canvasPcb.classList.add('hidden');
-            
-            let treeHTML = '<div class="space-y-3">';
-            
-            treeHTML += `
-                <div>
-                    <div class="flex items-center px-2 py-1 text-gray-700 font-bold text-[11px] uppercase tracking-tighter">
-                        <i class="fas fa-bolt mr-2 text-yellow-500"></i>电源管理
-                    </div>
-                    <div class="ml-4 space-y-1 mt-1">
-                        ${generateTreeItem('U2', 'AMS1117-3.3', 'microchip')}
-                        ${generateTreeItem('C1', '100nF 去耦', 'bolt')}
-                        ${generateTreeItem('C2', '10uF 滤波', 'bolt')}
-                    </div>
-                </div>
-            `;
-            
-            treeHTML += `
-                <div>
-                    <div class="flex items-center px-2 py-1 text-gray-700 font-bold text-[11px] uppercase tracking-tighter">
-                        <i class="fas fa-microchip mr-2 text-blue-500"></i>核心 MCU
-                    </div>
-                    <div class="ml-4 space-y-1 mt-1">
-                        ${generateTreeItem('U1', 'STM32F103', 'microchip', true)}
-                    </div>
-                </div>
-            `;
-            
-            treeHTML += `
-                <div>
-                    <div class="flex items-center px-2 py-1 text-gray-700 font-bold text-[11px] uppercase tracking-tighter">
-                        <i class="fas fa-clock mr-2 text-purple-500"></i>时钟系统
-                    </div>
-                    <div class="ml-4 space-y-1 mt-1">
-                        ${generateTreeItem('Y1', '8MHz 晶振', 'wave-square')}
-                        ${generateTreeItem('C3', '22pF 负载', 'bolt')}
-                    </div>
-                </div>
-            `;
-            
-            treeHTML += `
-                <div>
-                    <div class="flex items-center px-2 py-1 text-gray-700 font-bold text-[11px] uppercase tracking-tighter">
-                        <i class="fas fa-circle-notch mr-2 text-green-500"></i>外围电路
-                    </div>
-                    <div class="ml-4 space-y-1 mt-1">
-                        ${generateTreeItem('R1', '10K 上拉', 'minus')}
-                        ${generateTreeItem('R2', '4.7K 限流', 'minus')}
-                        ${generateTreeItem('R3', '330R LED限流', 'minus')}
-                        ${generateTreeItem('D1', 'LED 指示灯', 'lightbulb')}
-                    </div>
-                </div>
-            `;
-            
-            treeHTML += `
-                <div>
-                    <div class="flex items-center px-2 py-1 text-gray-700 font-bold text-[11px] uppercase tracking-tighter">
-                        <i class="fas fa-plug mr-2 text-orange-500"></i>接口
-                    </div>
-                    <div class="ml-4 space-y-1 mt-1">
-                        ${generateTreeItem('J1', 'SWD 4P 调试', 'plug')}
-                    </div>
-                </div>
-            `;
-            
-            treeHTML += '</div>';
-            tabContent.innerHTML = treeHTML;
-            
-        } else {
-            canvasSchematic.classList.add('hidden');
-            canvasPcb.classList.remove('hidden');
-            tabContent.innerHTML = `
-                <div class="space-y-3">
-                    <div>
-                        <div class="flex items-center px-2 py-1 text-gray-700 font-bold text-[11px] uppercase tracking-tighter">
-                            <i class="fas fa-layer-group mr-2 text-gray-400"></i>图层管理
-                        </div>
-                        <div class="ml-4 space-y-1 mt-1">
-                            <label class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" id="cb-layer-top" ${pcbLayerState.top ? 'checked' : ''} class="mr-3 w-3 h-3 accent-blue-600">
-                                <span class="text-gray-600">Top Layer (顶层信号)</span>
-                            </label>
-                            <label class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" id="cb-layer-bottom" ${pcbLayerState.bottom ? 'checked' : ''} class="mr-3 w-3 h-3 accent-blue-600">
-                                <span class="text-gray-600">Bottom Layer (底层信号)</span>
-                            </label>
-                            <label class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" id="cb-layer-silkscreen" ${pcbLayerState.silkscreen ? 'checked' : ''} class="mr-3 w-3 h-3 accent-blue-600">
-                                <span class="text-gray-600">Top Silkscreen (丝印)</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="mt-4">
-                        <div class="flex items-center px-2 py-1 text-gray-700 font-bold text-[11px] uppercase tracking-tighter">
-                            <i class="fas fa-ruler-combined mr-2 text-gray-400"></i>板框信息
-                        </div>
-                        <div class="ml-4 mt-2 text-xs text-gray-500">
-                            <div>尺寸: 90mm x 70mm</div>
-                            <div>层数: 2-Layer</div>
-                            <div>板厚: 1.6mm</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            // 必须在这里重新绑定事件，因为 innerHTML 会销毁旧的 DOM
-            document.getElementById('cb-layer-top')?.addEventListener('change', (e) => togglePcbLayer('top', e.target.checked));
-            document.getElementById('cb-layer-bottom')?.addEventListener('change', (e) => togglePcbLayer('bottom', e.target.checked));
-            document.getElementById('cb-layer-silkscreen')?.addEventListener('change', (e) => togglePcbLayer('silkscreen', e.target.checked));
-        }
-        bindSvgEvents();
-    }
-
     function generateTreeItem(ref, label, icon, isPrimary = false) {
         const data = mockComponentData[ref];
         // 如果当前版本不存在该器件，返回空字符串（不渲染）
@@ -1694,6 +1256,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const tabKey = btn.getAttribute('data-tab');
+            AppState.currentTab = tabKey;
             currentTab = tabKey;
             
             const config = {
@@ -1722,17 +1285,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tabTitle.innerText = config.title;
             
-            if (tabKey === 'tree') {
-                renderTreeContent();
-                clearDiffHighlight();
-            } else if (tabKey === 'diff') {
-                renderDiffContent();
+            // 【核心修复】只发事件，不干活，让 sidebar 去渲染
+            bus.emit('TAB_CHANGED', tabKey);
+            
+            // 同步 Diff 高亮状态
+            if (tabKey === 'diff') {
                 applyDiffHighlight();
-            } else if (tabKey === 'notes') {
-                renderNotesContent();
-                clearDiffHighlight();
             } else {
-                tabContent.innerHTML = '<div class="p-4 text-gray-400 italic text-center text-xs">占位内容...</div>';
                 clearDiffHighlight();
             }
 
@@ -1962,52 +1521,6 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasWrapper.addEventListener('mousedown', hideAnnotationBubble);
         canvasWrapper.addEventListener('wheel', hideAnnotationBubble);
     }
-
-    // ============ V4.0 紧急修复：补齐丢失的 2D 渲染与高亮引擎 ============
-
-    // 1. 画布视图更新核心
-    function updateCanvasTransform() {
-        if (!canvasTransform) return;
-        canvasTransform.style.transform = `translate(${canvasState.translateX}px, ${canvasState.translateY}px) scale(${canvasState.scale})`;
-        const zoomLevel = document.getElementById('zoom-level');
-        if (zoomLevel) zoomLevel.textContent = Math.round(canvasState.scale * 100) + '%';
-    }
-
-    // 2. 缩放数学计算逻辑
-    function zoom(factor, centerX, centerY) {
-        if (!canvasWrapper) return;
-        const newScale = Math.max(0.2, Math.min(5, canvasState.scale * factor));
-
-        if (centerX !== undefined && centerY !== undefined) {
-            const rect = canvasWrapper.getBoundingClientRect();
-            const mouseX = centerX - rect.left;
-            const mouseY = centerY - rect.top;
-            
-            updateCanvasState({
-                translateX: mouseX - (mouseX - canvasState.translateX) * (newScale / canvasState.scale),
-                translateY: mouseY - (mouseY - canvasState.translateY) * (newScale / canvasState.scale)
-            });
-        }
-        updateCanvasState({ scale: newScale });
-        updateCanvasTransform();
-    }
-
-    // 3. 恢复画布滚轮监听
-    if (canvasWrapper) {
-        canvasWrapper.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const factor = e.deltaY > 0 ? 0.9 : 1.1;
-            zoom(factor, e.clientX, e.clientY);
-        }, { passive: false });
-    }
-
-    // 4. 恢复 EventBus 的缩放指令监听
-    bus.on('ZOOM_IN', () => zoom(1.2));
-    bus.on('ZOOM_OUT', () => zoom(0.8));
-    bus.on('ZOOM_RESET', () => {
-        updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
-        updateCanvasTransform();
-    });
 
     // 5. 恢复版本差异的高亮渲染逻辑
     function applyDiffHighlight() {

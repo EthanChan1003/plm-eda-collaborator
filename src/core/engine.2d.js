@@ -62,3 +62,36 @@ export function zoom(factor, centerX, centerY, canvasWrapper, canvasState, updat
     
     return { scale: newScale, translateX: newTranslateX, translateY: newTranslateY };
 }
+
+// ============ EventBus 事件监听 ============
+import { bus } from './event.bus.js';
+
+bus.on('ZOOM_IN', () => {
+    const transformEl = document.getElementById('canvas-transform');
+    const wrapperEl = document.getElementById('canvas-wrapper');
+    if (!transformEl || !wrapperEl) return;
+    
+    zoom(1.2, undefined, undefined, wrapperEl, canvasState, (newState) => {
+        updateCanvasState(newState);
+        updateCanvasTransform(transformEl, canvasState);
+    });
+});
+
+bus.on('ZOOM_OUT', () => {
+    const transformEl = document.getElementById('canvas-transform');
+    const wrapperEl = document.getElementById('canvas-wrapper');
+    if (!transformEl || !wrapperEl) return;
+    
+    zoom(0.8, undefined, undefined, wrapperEl, canvasState, (newState) => {
+        updateCanvasState(newState);
+        updateCanvasTransform(transformEl, canvasState);
+    });
+});
+
+bus.on('ZOOM_RESET', () => {
+    const transformEl = document.getElementById('canvas-transform');
+    if (!transformEl) return;
+    
+    updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
+    updateCanvasTransform(transformEl, canvasState);
+});

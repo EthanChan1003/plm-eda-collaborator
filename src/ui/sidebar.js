@@ -169,6 +169,13 @@ export function renderTreeContent() {
         `;
     }
     
+    // PCB 视图下绑定层复选框事件
+    if (currentDrawingType === 'pcb') {
+        document.getElementById('cb-layer-top')?.addEventListener('change', (e) => window.togglePcbLayer('top', e.target.checked));
+        document.getElementById('cb-layer-bottom')?.addEventListener('change', (e) => window.togglePcbLayer('bottom', e.target.checked));
+        document.getElementById('cb-layer-silkscreen')?.addEventListener('change', (e) => window.togglePcbLayer('silkscreen', e.target.checked));
+    }
+    
     bindSvgEvents();
 }
 
