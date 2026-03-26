@@ -616,7 +616,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // 显示气泡
-            showAnnotationBubble(annotationId);
+            // 【修复】将当前的 targetVersion 传给气泡生成函数
+            showAnnotationBubble(annotationId, targetVersion);
         }
     }
 
@@ -709,7 +710,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 步骤4：触发呼吸闪烁动画
         setTimeout(() => {
-            highlightAnnotation(annotationId, true);
+            // 【修复】正确传递版本号和呼吸灯标记
+            highlightAnnotation(annotationId, targetVersion, true);
         }, 550);
     };
 
