@@ -833,8 +833,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 6. 绘制 PCB 物理基板
         createPcbBoard();
+        
+        // 【新增】7. 绘制具有物理高度的 3D 元器件
+        createComponents();
+        
+        // 【新增】8. 动态解析并生成 3D 走线网络
+        createTraces();
 
-        // 7. 渲染循环
+        // 9. 渲染循环
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
@@ -880,6 +886,92 @@ document.addEventListener('DOMContentLoaded', () => {
         board.receiveShadow = true;
         board.castShadow = true;
         scene.add(board);
+    }
+
+    // ============ 3D 元器件生成引擎 ============
+    function createComponents() {
+        // 2D 坐标映射到 3D 空间的辅助函数
+        function svgTo3D(x, y, w, h, zThickness) {
+            return {
+                x: (x + w / 2) - 500,        // X轴偏移量 (原点在500)
+                y: 400 - (y + h / 2),        // Y轴反转并计算偏移 (原点在400)
+                z: 8 + (zThickness / 2)      // 板厚(16)的一半 + 器件高度的一半
+            };
+        }
+
+        // 器件物理尺寸字典 (映射自 2D 图纸与真实物理高度)
+        const componentsData = [
+            { ref: 'U1', x: 350, y: 280, w: 160, h: 160, z: 12, color: '#1f2937' }, // 主控 MCU
+            { ref: 'U2', x: 100, y: 140, w: 50,  h: 40,  z: 15, color: '#1f2937' }, // LDO
+            { ref: 'J1', x: 100, y: 600, w: 50,  h: 80,  z: 85, color: '#f8fafc' }, // 高耸的排针 (干涉主角)
+            { ref: 'Y1', x: 620, y: 290, w: 60,  h: 25,  z: 30, color: '#94a3b8' }, // 晶振 (金属色)
+            { ref: 'C1', x: 260, y: 300, w: 25,  h: 12,  z: 8,  color: '#b45309' }, // 贴片电容
+            { ref: 'C2', x: 260, y: 380, w: 30,  h: 14,  z: 10, color: '#b45309' },
+            { ref: 'C3', x: 720, y: 290, w: 18,  h: 8,   z: 6,  color: '#b45309' },
+            { ref: 'C4', x: 170, y: 600, w: 25,  h: 12,  z: 8,  color: '#b45309' },
+            { ref: 'R1', x: 620, y: 410, w: 30,  h: 12,  z: 6,  color: '#020617' }, // 贴片电阻
+            { ref: 'R2', x: 620, y: 470, w: 30,  h: 12,  z: 6,  color: '#020617' },
+            { ref: 'R3', x: 760, y: 310, w: 30,  h: 12,  z: 6,  color: '#020617' },
+            { ref: 'D1', x: 860, y: 310, w: 30,  h: 14,  z: 12, color: '#ef4444' }  // LED 指示灯
+        ];
+
+        componentsData.forEach(comp => {
+            const pos = svgTo3D(comp.x, comp.y, comp.w, comp.h, comp.z);
+            const geometry = new THREE.BoxGeometry(comp.w, comp.h, comp.z);
+            
+            // LED 特殊自发光材质处理
+            const materialParams = { color: comp.color, shininess: 50 };
+            if (comp.ref === 'D1') materialParams.emissive = new THREE.Color('#991b1b');
+            
+            const material = new THREE.MeshPhongMaterial(materialParams);
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            mesh.position.set(pos.x, pos.y, pos.z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData = { ref: comp.ref }; // 埋入位号数据，用于后续互动联动
+            
+            scene.add(mesh);
+        });
+    }
+
+    // ============ 3D 数字主线：动态解析走线网络 ============
+    function createTraces() {
+        // SVG Path 转 3D 线段解析器
+        function parsePathToLine(dStr, zPos, colorHex) {
+            const points = [];
+            // 按 M (Move) 或 L (Line) 切割指令
+            const commands = dStr.split(/(?=[ML])/); 
+            commands.forEach(cmd => {
+                const parts = cmd.trim().split(' ');
+                if (parts.length >= 3) {
+                    const x = parseFloat(parts[1]) - 500;
+                    const y = 400 - parseFloat(parts[2]);
+                    points.push(new THREE.Vector3(x, y, zPos));
+                }
+            });
+            
+            if (points.length > 1) {
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ color: colorHex });
+                const line = new THREE.Line(geometry, material);
+                scene.add(line);
+            }
+        }
+
+        // 提取顶层走线 (红色，贴于板上)
+        const topPaths = document.querySelectorAll('#pcb-layer-top path');
+        topPaths.forEach(p => {
+            const d = p.getAttribute('d');
+            if(d) parsePathToLine(d, 8.1, 0xef4444); // 位于 Z = 8.1
+        });
+
+        // 提取底层走线 (蓝色，贴于板底)
+        const bottomPaths = document.querySelectorAll('#pcb-layer-bottom path');
+        bottomPaths.forEach(p => {
+            const d = p.getAttribute('d');
+            if(d) parsePathToLine(d, -8.1, 0x3b82f6); // 位于 Z = -8.1
+        });
     }
 
     // 切换 2D/3D 分屏
