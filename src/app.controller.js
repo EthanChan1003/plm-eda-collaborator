@@ -1,3 +1,41 @@
+// ============ V4.0 ES6 模块引入与状态桥接 ============
+import { AppState } from './core/state.js';
+import { bus } from './core/event.bus.js';
+import { versionedComponentData, versionDiffLibrary, presetAnnotations } from './data/mock.data.js';
+import { canvasState, ToolMode, currentToolMode, updateCanvasState, setToolMode as setToolModeModule } from './core/engine.2d.js';
+
+// 兜底引入拆分出去的功能，防止旧代码报错
+import * as Mcad3D from './features/mcad.3d.js';
+import * as ExportPdf from './features/export.pdf.js';
+
+// 1. 恢复之前 config.data.js 中被删掉的动态数据变量
+let mockComponentData = { ...versionedComponentData[AppState.currentVersion] };
+let mockDiffData = {};
+let annotations = [];
+
+// 2. 恢复之前 config.data.js 中被删掉的辅助函数
+function getCurrentComponentData() {
+    return versionedComponentData[AppState.currentVersion] || versionedComponentData['V2.1'];
+}
+function calculateVersionDiff(currentVersion, compareVersion) {
+    const key = `${currentVersion}-vs-${compareVersion}`;
+    if (versionDiffLibrary[key]) {
+        mockDiffData = { ...versionDiffLibrary[key] };
+        return true;
+    }
+    mockDiffData = {};
+    return false;
+}
+function getNextAnnotationId(version) {
+    const versionAnnotations = annotations.filter(a => a.version === version);
+    if (versionAnnotations.length === 0) return 1;
+    return Math.max(...versionAnnotations.map(a => a.id)) + 1;
+}
+function initPresetAnnotations() {
+    if (annotations.length === 0) annotations = [...presetAnnotations];
+}
+
+// ============ 原有业务逻辑向下顺延 ============
 // 业务逻辑控制器
 // 依赖：config.data.js 和 core.engine.js
 
@@ -303,7 +341,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 工具模式切换 ============
     function setToolMode(mode) {
-        currentToolMode = mode;
+        // 同步到模块状态
+        setToolModeModule(mode);
         
         // 重置所有工具按钮状态
         toolSelect.classList.remove('tool-active');
@@ -380,9 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 复位按钮
     if (toolReset) toolReset.addEventListener('click', () => {
-        canvasState.scale = 1;
-        canvasState.translateX = 0;
-        canvasState.translateY = 0;
+        updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
         updateCanvasTransform();
     });
 
@@ -404,8 +441,10 @@ document.addEventListener('DOMContentLoaded', () => {
     canvasWrapper.addEventListener('mousemove', (e) => {
         if (!isPanning) return;
         
-        canvasState.translateX = e.clientX - panStartX;
-        canvasState.translateY = e.clientY - panStartY;
+        updateCanvasState({
+            translateX: e.clientX - panStartX,
+            translateY: e.clientY - panStartY
+        });
         updateCanvasTransform();
     });
 
@@ -724,9 +763,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 步骤3：应用平滑过渡动画
         canvasTransform.style.transition = 'transform 0.5s ease-out';
-        canvasState.scale = targetScale;
-        canvasState.translateX = targetTranslateX;
-        canvasState.translateY = targetTranslateY;
+        updateCanvasState({
+            scale: targetScale,
+            translateX: targetTranslateX,
+            translateY: targetTranslateY
+        });
         updateCanvasTransform();
 
         // 恢复快速响应
