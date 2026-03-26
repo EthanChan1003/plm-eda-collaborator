@@ -67,30 +67,39 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. 同步画布图元显示/隐藏
         syncCanvasComponents();
 
-        // 2. 重新渲染结构树
-        renderTreeContent();
-
-        // 3. 切换批注显示/隐藏（根据版本过滤，不重新创建）
+        // 2. 切换批注显示/隐藏（根据版本过滤，不重新创建）- 只操作画布DOM，不触碰左侧面板
         annotations.forEach(annotation => {
             if (annotation.element) {
                 const shouldShow = annotation.version === AppState.currentVersion;
                 annotation.element.style.display = shouldShow ? '' : 'none';
             }
         });
-        renderNotesContent();
 
-        // 4. 重新计算版本差异
-        if (currentTab === 'diff' && versionCompareSelect) {
-            const compareVersion = versionCompareSelect.value;
-            calculateVersionDiff(AppState.currentVersion, compareVersion);
-            renderDiffContent();
-            applyDiffHighlight();
+        // 3. 根据当前激活的页签，仅刷新对应内容
+        switch (currentTab) {
+            case 'tree':
+                renderTreeContent();
+                break;
+            case 'diff':
+                if (versionCompareSelect) {
+                    const compareVersion = versionCompareSelect.value;
+                    calculateVersionDiff(AppState.currentVersion, compareVersion);
+                }
+                renderDiffContent();
+                applyDiffHighlight();
+                break;
+            case 'notes':
+                renderNotesContent();
+                break;
+            default:
+                // 其他页签不做处理
+                break;
         }
 
-        // 5. 更新权限
+        // 4. 更新权限
         updateAnnotationPermissions();
 
-        // 6. 更新对比版本下拉框选项（排除当前版本）
+        // 5. 更新对比版本下拉框选项（排除当前版本）
         updateCompareVersionOptions();
     }
 
@@ -646,6 +655,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 渲染批注列表 ============
     function renderNotesContent() {
+        // 保护：仅在批注页签下执行渲染，防止意外清空其他页签内容
+        if (currentTab !== 'notes') return;
+
         // 权限控制：非最新版本隐藏删除按钮
         const isLatest = AppState.currentVersion === AppState.latestVersion;
 
