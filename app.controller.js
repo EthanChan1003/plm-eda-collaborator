@@ -56,6 +56,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============ 全局版本切换 ============
     function switchGlobalVersion(newVersion) {
         AppState.currentVersion = newVersion;
+        // 强制更新全局的器件数据池
+        mockComponentData = { ...versionedComponentData[AppState.currentVersion] };
 
         // 1. 同步画布图元显示/隐藏
         syncCanvasComponents();
@@ -173,6 +175,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 关闭气泡按钮
     if (closeBubbleBtn) {
         closeBubbleBtn.addEventListener('click', hideAnnotationBubble);
+    }
+
+    // 确保气泡元素存在
+    if (!annotationBubble || !bubbleContent) {
+        console.warn('Annotation bubble elements not found');
     }
 
     // 点击画布其他区域隐藏气泡
@@ -911,40 +918,43 @@ document.addEventListener('DOMContentLoaded', () => {
         searchDropdown.classList.remove('hidden');
     }
 
-    searchInput.addEventListener('input', (e) => {
-        const value = e.target.value.trim();
-        if (value === '') {
-            searchDropdown.classList.add('hidden');
-        } else {
-            renderSearchDropdown(value);
-        }
-    });
-
-    searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
             const value = e.target.value.trim();
-            if (currentTab === 'tree' || currentTab === 'diff') {
-                const upperValue = value.toUpperCase();
-                if (mockComponentData[upperValue]) {
-                    selectComponent(upperValue);
-                    searchDropdown.classList.add('hidden');
-                    searchInput.blur();
-                }
-            } else if (currentTab === 'notes') {
-                const match = annotations.find(note => 
-                    note.text.toUpperCase().includes(value.toUpperCase())
-                );
-                if (match) {
-                    locateAnnotation(match.id);
-                    searchDropdown.classList.add('hidden');
-                    searchInput.blur();
+            if (value === '') {
+                searchDropdown.classList.add('hidden');
+            } else {
+                renderSearchDropdown(value);
+            }
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const value = e.target.value.trim();
+                if (currentTab === 'tree' || currentTab === 'diff') {
+                    const upperValue = value.toUpperCase();
+                    if (mockComponentData[upperValue]) {
+                        selectComponent(upperValue);
+                        searchDropdown.classList.add('hidden');
+                        searchInput.blur();
+                    }
+                } else if (currentTab === 'notes') {
+                    const match = annotations.find(note =>
+                        note.text.toUpperCase().includes(value.toUpperCase())
+                    );
+                    if (match) {
+                        locateAnnotation(match.id);
+                        searchDropdown.classList.add('hidden');
+                        searchInput.blur();
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 
     document.addEventListener('click', (e) => {
-        if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+        if (searchInput && searchDropdown &&
+            !searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
             searchDropdown.classList.add('hidden');
         }
     });
@@ -1166,37 +1176,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnPcb) btnPcb.addEventListener('click', switchToPcb);
 
     // ============ 版本选择框联动 ============
-    const versionBaseSelect = document.getElementById('version-base');
-
-    function handleVersionChange() {
-        if (!versionBaseSelect || !versionCompareSelect) return;
-
-        const baseVersion = versionBaseSelect.value;
-        const compareVersion = versionCompareSelect.value;
-
-        // 确保基准版本 < 对比版本，否则交换
-        const baseNum = parseFloat(baseVersion.replace('V', ''));
-        const compareNum = parseFloat(compareVersion.replace('V', ''));
-
-        let versionKey;
-        if (baseNum < compareNum) {
-            versionKey = `${baseVersion}->${compareVersion}`;
-        } else {
-            versionKey = `${compareVersion}->${baseVersion}`;
-        }
-
-        if (switchVersionDiff(versionKey)) {
+    // 仅依赖 versionCompareSelect，与当前全局版本对比
+    if (versionCompareSelect) {
+        versionCompareSelect.addEventListener('change', () => {
+            const compareVersion = versionCompareSelect.value;
+            calculateVersionDiff(AppState.currentVersion, compareVersion);
             renderDiffContent();
             applyDiffHighlight();
-        }
-    }
-
-    if (versionBaseSelect && versionCompareSelect) {
-        versionBaseSelect.addEventListener('change', handleVersionChange);
-        versionCompareSelect.addEventListener('change', handleVersionChange);
-
-        // 初始化同步：根据当前下拉框默认值自动渲染
-        handleVersionChange();
+        });
     }
 
     // ============ 初始化预置批注 ============
@@ -1252,4 +1239,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 执行预置批注渲染（只在 DOMContentLoaded 时执行一次）
     renderPresetAnnotations();
+
+    // 保底渲染：确保初始结构树被渲染
+    renderTreeContent();
 });

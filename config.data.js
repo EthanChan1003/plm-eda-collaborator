@@ -160,16 +160,5 @@ let currentToolMode = ToolMode.SELECT;
 let currentDrawingType = 'schematic';
 let currentTab = 'tree';
 
-// 向后兼容：mockComponentData 指向当前版本数据
-const mockComponentData = new Proxy({}, {
-    get(target, prop) {
-        return getCurrentComponentData()[prop];
-    },
-    ownKeys() {
-        return Reflect.ownKeys(getCurrentComponentData());
-    },
-    // 必须增加此拦截器，否则 Object.keys() 返回空数组
-    getOwnPropertyDescriptor(target, prop) {
-        return { enumerable: true, configurable: true };
-    }
-});
+// 剥离 Proxy，采用最稳定的直接赋值
+let mockComponentData = { ...versionedComponentData[AppState.currentVersion] };
