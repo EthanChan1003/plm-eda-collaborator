@@ -133,16 +133,48 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 更新对比版本下拉框选项
+    // 版本比较辅助函数：将 'V2.1' 转换为数值 2.1
+    function parseVersion(v) {
+        return parseFloat(v.replace('V', ''));
+    }
+
+    // 初始化全局版本下拉框（降序排列 + 最新标记）
+    function initGlobalVersionSelect() {
+        if (!globalVersionSelect) return;
+        const allVersions = ['V1.0', 'V2.0', 'V2.1'];
+        const currentVal = globalVersionSelect.value || AppState.currentVersion;
+
+        globalVersionSelect.innerHTML = allVersions
+            .sort((a, b) => parseVersion(b) - parseVersion(a)) // 降序排列
+            .map(v => {
+                const isLatest = v === AppState.latestVersion;
+                const label = isLatest ? `${v} (最新)` : v;
+                return `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${label}</option>`;
+            })
+            .join('');
+    }
+
+    // 更新对比版本下拉框选项（只显示比当前版本更低的历史版本，降序排列）
     function updateCompareVersionOptions() {
         if (!versionCompareSelect) return;
-        const currentVal = versionCompareSelect.value;
+        const currentVersionNum = parseVersion(AppState.currentVersion);
         const allVersions = ['V1.0', 'V2.0', 'V2.1'];
 
-        versionCompareSelect.innerHTML = allVersions
-            .filter(v => v !== AppState.currentVersion)
-            .map(v => `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${v}</option>`)
-            .join('');
+        // 过滤：只保留比当前版本更低的版本
+        const lowerVersions = allVersions.filter(v => parseVersion(v) < currentVersionNum);
+
+        if (lowerVersions.length === 0) {
+            // 当前已是最低版本，显示空状态
+            versionCompareSelect.innerHTML = '<option value="" disabled selected>无历史版本</option>';
+            versionCompareSelect.disabled = true;
+        } else {
+            const currentVal = versionCompareSelect.value;
+            versionCompareSelect.disabled = false;
+            versionCompareSelect.innerHTML = lowerVersions
+                .sort((a, b) => parseVersion(b) - parseVersion(a)) // 降序排列
+                .map(v => `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${v}</option>`)
+                .join('');
+        }
     }
 
     // 全局版本选择器事件
@@ -1262,4 +1294,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 保底渲染：确保初始结构树被渲染
     renderTreeContent();
+
+    // 初始化版本选择器
+    initGlobalVersionSelect();
+    updateCompareVersionOptions();
 });
