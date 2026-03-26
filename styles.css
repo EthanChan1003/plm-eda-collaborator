@@ -238,6 +238,13 @@ body {
     background-color: #eff6ff;
     border-left-color: #2563eb;
 }
+/* 删除按钮样式 */
+.note-item .delete-btn {
+    transition: color 0.2s ease;
+}
+.note-item .delete-btn:hover {
+    color: #ef4444;
+}
 /* 缩放信息提示 */
 .zoom-info {
     position: absolute;

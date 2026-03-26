@@ -336,6 +336,25 @@ document.addEventListener('DOMContentLoaded', () => {
         renderNotesContent();
     };
 
+    // ============ 批注删除功能 ============
+    window.deleteAnnotation = function(id) {
+        const index = annotations.findIndex(a => a.id === id);
+        if (index === -1) return;
+        
+        const annotation = annotations[index];
+        
+        // 从 DOM 中移除对应的批注框
+        if (annotation.element && annotation.element.parentNode) {
+            annotation.element.parentNode.removeChild(annotation.element);
+        }
+        
+        // 从全局数组中移除
+        annotations.splice(index, 1);
+        
+        // 重新渲染批注列表
+        renderNotesContent();
+    };
+
     // ============ 跨视图定位功能 ============
     window.locateAnnotation = function(annotationId) {
         const annotation = annotations.find(a => a.id === annotationId);
@@ -497,6 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="flex items-center space-x-2">
                             <span class="text-[10px] text-gray-400">${note.time}</span>
                             <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id})" title="${isResolved ? '已解决，点击标记为待处理' : '待处理，点击标记为已解决'}"></i>
+                            <i class="fas fa-trash text-xs cursor-pointer text-gray-400 hover:text-red-500 delete-btn" onclick="event.stopPropagation(); deleteAnnotation(${note.id})" title="删除批注"></i>
                         </div>
                     </div>
                     <div class="text-xs ${textClass} mt-1 line-clamp-2">${note.text}</div>
@@ -614,35 +634,107 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ============ 搜索联想功能 ============
+    // ============ 场景化搜索联想功能 ============
     function renderSearchDropdown(query) {
         const upperQuery = query.toUpperCase();
-        const matches = Object.keys(mockComponentData).filter(key => 
-            key.toUpperCase().includes(upperQuery)
-        );
+        let matches = [];
+        let html = '';
 
-        if (matches.length === 0 || query === '') {
+        if (currentTab === 'tree') {
+            // 结构树模式：搜索位号
+            matches = Object.keys(mockComponentData).filter(key => 
+                key.toUpperCase().includes(upperQuery)
+            );
+            if (matches.length === 0 || query === '') {
+                searchDropdown.classList.add('hidden');
+                return;
+            }
+            html = matches.map(ref => {
+                const data = mockComponentData[ref];
+                return `
+                    <li class="search-item px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center justify-between" data-type="component" data-ref="${ref}">
+                        <span class="font-medium">${ref}</span>
+                        <span class="text-xs text-gray-400">${data.PartNumber}</span>
+                    </li>
+                `;
+            }).join('');
+        } else if (currentTab === 'diff') {
+            // 版本差异模式：搜索位号或差异描述
+            matches = Object.keys(mockDiffData).filter(key => {
+                const diff = mockDiffData[key];
+                return key.toUpperCase().includes(upperQuery) || 
+                       diff.desc.toUpperCase().includes(upperQuery);
+            });
+            if (matches.length === 0 || query === '') {
+                searchDropdown.classList.add('hidden');
+                return;
+            }
+            html = matches.map(ref => {
+                const diff = mockDiffData[ref];
+                const typeLabels = {
+                    'added': '新增',
+                    'modified': '修改',
+                    'deleted': '删除',
+                    'moved': '位移'
+                };
+                return `
+                    <li class="search-item px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center justify-between" data-type="diff" data-ref="${ref}">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-medium">${ref}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">${typeLabels[diff.type]}</span>
+                        </div>
+                        <span class="text-xs text-gray-400 truncate max-w-[120px]">${diff.desc}</span>
+                    </li>
+                `;
+            }).join('');
+        } else if (currentTab === 'notes') {
+            // 批注列表模式：搜索批注内容
+            matches = annotations.filter(note => 
+                note.text.toUpperCase().includes(upperQuery)
+            );
+            if (matches.length === 0 || query === '') {
+                searchDropdown.classList.add('hidden');
+                return;
+            }
+            html = matches.map(note => {
+                const viewLabel = note.viewType === 'schematic' ? '原理图' : 'PCB';
+                return `
+                    <li class="search-item px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center justify-between" data-type="annotation" data-id="${note.id}">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">${note.id}</span>
+                            <span class="text-xs text-gray-500">${viewLabel}</span>
+                        </div>
+                        <span class="text-xs text-gray-600 truncate max-w-[150px]">${note.text}</span>
+                    </li>
+                `;
+            }).join('');
+        } else {
             searchDropdown.classList.add('hidden');
             return;
         }
 
-        searchDropdown.innerHTML = matches.map(ref => {
-            const data = mockComponentData[ref];
-            return `
-                <li class="search-item px-3 py-2 text-sm text-gray-700 cursor-pointer flex items-center justify-between" data-ref="${ref}">
-                    <span class="font-medium">${ref}</span>
-                    <span class="text-xs text-gray-400">${data.PartNumber}</span>
-                </li>
-            `;
-        }).join('');
+        searchDropdown.innerHTML = html;
 
         searchDropdown.querySelectorAll('li').forEach(li => {
             li.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const ref = li.getAttribute('data-ref');
-                searchInput.value = ref;
-                searchDropdown.classList.add('hidden');
-                selectComponent(ref);
+                const type = li.getAttribute('data-type');
+                if (type === 'component') {
+                    const ref = li.getAttribute('data-ref');
+                    searchInput.value = ref;
+                    searchDropdown.classList.add('hidden');
+                    selectComponent(ref);
+                } else if (type === 'diff') {
+                    const ref = li.getAttribute('data-ref');
+                    searchInput.value = ref;
+                    searchDropdown.classList.add('hidden');
+                    selectComponent(ref);
+                } else if (type === 'annotation') {
+                    const id = parseInt(li.getAttribute('data-id'));
+                    searchInput.value = '';
+                    searchDropdown.classList.add('hidden');
+                    locateAnnotation(id);
+                }
             });
         });
 
@@ -660,11 +752,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
-            const value = e.target.value.trim().toUpperCase();
-            if (mockComponentData[value]) {
-                selectComponent(value);
-                searchDropdown.classList.add('hidden');
-                searchInput.blur();
+            const value = e.target.value.trim();
+            if (currentTab === 'tree' || currentTab === 'diff') {
+                const upperValue = value.toUpperCase();
+                if (mockComponentData[upperValue]) {
+                    selectComponent(upperValue);
+                    searchDropdown.classList.add('hidden');
+                    searchInput.blur();
+                }
+            } else if (currentTab === 'notes') {
+                const match = annotations.find(note => 
+                    note.text.toUpperCase().includes(value.toUpperCase())
+                );
+                if (match) {
+                    locateAnnotation(match.id);
+                    searchDropdown.classList.add('hidden');
+                    searchInput.blur();
+                }
             }
         }
     });
@@ -838,10 +942,20 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const config = {
                 'tree': { title: '结构树', showSearch: true, showDiff: false, showBottom: false },
-                'diff': { title: '版本差异', showSearch: false, showDiff: true, showBottom: false },
+                'diff': { title: '版本差异', showSearch: true, showDiff: true, showBottom: false },
                 'collab': { title: '协同记录', showSearch: false, showDiff: false, showBottom: false },
-                'notes': { title: '批注列表', showSearch: false, showDiff: false, showBottom: true }
+                'notes': { title: '批注列表', showSearch: true, showDiff: false, showBottom: true }
             }[tabKey];
+
+            // 更新搜索框占位符
+            const searchInput = document.getElementById('search-input');
+            if (tabKey === 'tree') {
+                searchInput.placeholder = '搜索位号 / 网络名...';
+            } else if (tabKey === 'diff') {
+                searchInput.placeholder = '搜索位号 / 差异描述...';
+            } else if (tabKey === 'notes') {
+                searchInput.placeholder = '搜索批注内容...';
+            }
 
             tabButtons.forEach(b => {
                 b.classList.remove('text-blue-600', 'bg-blue-50');
