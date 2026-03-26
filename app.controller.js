@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .sort((a, b) => parseVersion(b) - parseVersion(a)) // 降序排列
             .map(v => {
                 const isLatest = v === AppState.latestVersion;
-                const label = isLatest ? `${v} (最新)` : v;
+                const label = isLatest ? `${v} 最新` : v;
                 return `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${label}</option>`;
             })
             .join('');
