@@ -96,13 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const bubbleContent = document.getElementById('bubble-content');
     const closeBubbleBtn = document.getElementById('close-bubble');
 
-    // 初始化核心引擎（传递 DOM 依赖）
-    if (canvasWrapper && canvasTransform) {
-        initEngine(canvasWrapper, canvasTransform);
-    } else {
-        console.error('Canvas elements not found, engine initialization failed');
-    }
-
     // ============ 新增：PCB 图层状态机 ============
     let pcbLayerState = {
         top: true,
@@ -405,23 +398,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ============ 画布缩放功能 ============
-    // 滚轮缩放
-    canvasWrapper.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const factor = e.deltaY > 0 ? 0.9 : 1.1;
-        zoom(factor, e.clientX, e.clientY);
-    }, { passive: false });
-
-    // 缩放按钮
-    if (toolZoomIn) toolZoomIn.addEventListener('click', () => zoom(1.2));
-    if (toolZoomOut) toolZoomOut.addEventListener('click', () => zoom(0.8));
-
-    // 复位按钮
-    if (toolReset) toolReset.addEventListener('click', () => {
-        updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
-        updateCanvasTransform();
-    });
+    // ============ 画布缩放功能 (V4.0 事件总线驱动) ============
+    // 滚轮逻辑已在 engine.2d.js 内部接管，此处只需绑定顶部工具栏按钮
+    if (toolZoomIn) toolZoomIn.addEventListener('click', () => bus.emit('ZOOM_IN'));
+    if (toolZoomOut) toolZoomOut.addEventListener('click', () => bus.emit('ZOOM_OUT'));
+    if (toolReset) toolReset.addEventListener('click', () => bus.emit('ZOOM_RESET'));
 
     // ============ 画布平移功能 ============
     let isPanning = false;
