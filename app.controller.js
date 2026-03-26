@@ -872,6 +872,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderer.domElement.addEventListener('click', (event) => {
             if (!isSplitViewActive) return;
 
+            // 【关键修复】阻止事件冒泡！
+            // 防止点击事件向上传递，触发 DOM 顶层的"清空所有选中状态"逻辑
+            event.stopPropagation();
+
             // 获取 3D 画布在屏幕上的绝对包围盒
             const rect = renderer.domElement.getBoundingClientRect();
             
