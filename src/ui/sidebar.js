@@ -42,9 +42,14 @@ export function initSidebar() {
             case 'tree':
                 renderTreeContent();
                 break;
+            case 'diff':
+                renderDiffContent();
+                break;
             case 'notes':
                 renderNotesContent();
                 break;
+            default:
+                tabContent.innerHTML = '<div class="p-4 text-gray-400 italic text-center text-xs">占位内容...</div>';
         }
     });
     
@@ -197,6 +202,58 @@ function generateTreeItem(ref, label, icon, isPrimary = false) {
             <span>${ref} (${partNumber})</span>
         </div>
     `;
+}
+
+/**
+ * 渲染版本差异列表
+ */
+export function renderDiffContent() {
+    if (!tabContent || currentTab !== 'diff') return;
+    
+    // 从 app.controller.js 获取差异数据
+    const mockDiffData = window.mockDiffData || {};
+    
+    const typeLabels = {
+        'added': { text: '新增', color: 'bg-green-500', textColor: 'text-green-700' },
+        'modified': { text: '修改', color: 'bg-yellow-500', textColor: 'text-yellow-700' },
+        'deleted': { text: '删除', color: 'bg-red-500', textColor: 'text-red-700' },
+        'moved': { text: '位移', color: 'bg-yellow-500', textColor: 'text-yellow-700' }
+    };
+
+    let diffHTML = '<div class="space-y-2 p-2">';
+    
+    Object.keys(mockDiffData).forEach(ref => {
+        const diff = mockDiffData[ref];
+        const label = typeLabels[diff.type];
+        
+        diffHTML += `
+            <div class="diff-item flex items-start p-3 rounded-lg cursor-pointer border border-gray-100" 
+                 onclick="selectComponent('${ref}')">
+                <div class="flex-shrink-0 mt-0.5">
+                    <div class="w-3 h-3 rounded-full ${label.color}"></div>
+                </div>
+                <div class="ml-3 flex-1">
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-gray-800 text-sm">${ref}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded ${label.textColor} bg-opacity-10 ${label.color.replace('bg-', 'bg-')}/10 font-medium">
+                            ${label.text}
+                        </span>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">${diff.desc}</div>
+                    ${(diff.type === 'modified' || diff.type === 'moved') ? `
+                        <div class="mt-2 text-xs flex items-center space-x-2">
+                            <span class="text-gray-400 line-through">${diff.oldVal}</span>
+                            <i class="fas fa-arrow-right text-gray-300 text-[10px]"></i>
+                            <span class="text-yellow-600 font-bold">${diff.newVal}</span>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    diffHTML += '</div>';
+    tabContent.innerHTML = diffHTML;
 }
 
 /**

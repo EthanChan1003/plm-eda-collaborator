@@ -18,6 +18,9 @@ let currentToolMode = ToolMode.SELECT;
 let mockComponentData = { ...versionedComponentData[AppState.currentVersion] };
 let mockDiffData = {};
 
+// 挂载到 window 供其他模块访问
+window.mockDiffData = mockDiffData;
+
 // 2. 恢复之前 config.data.js 中被删掉的辅助函数
 function getCurrentComponentData() {
     return versionedComponentData[AppState.currentVersion] || versionedComponentData['V2.1'];
@@ -26,9 +29,11 @@ function calculateVersionDiff(currentVersion, compareVersion) {
     const key = `${currentVersion}-vs-${compareVersion}`;
     if (versionDiffLibrary[key]) {
         mockDiffData = { ...versionDiffLibrary[key] };
+        window.mockDiffData = mockDiffData; // 同步到 window
         return true;
     }
     mockDiffData = {};
+    window.mockDiffData = mockDiffData; // 同步到 window
     return false;
 }
 
@@ -133,25 +138,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // 3. 根据当前激活的页签，仅刷新对应内容
-        switch (currentTab) {
-            case 'tree':
-                renderTreeContent();
-                break;
-            case 'diff':
-                if (versionCompareSelect) {
-                    const compareVersion = versionCompareSelect.value;
-                    calculateVersionDiff(AppState.currentVersion, compareVersion);
-                }
-                renderDiffContent();
-                applyDiffHighlight();
-                break;
-            case 'notes':
-                renderNotesContent();
-                break;
-            default:
-                // 其他页签不做处理
-                break;
+        // 3. 根据当前激活的页签，通知 Sidebar 刷新对应内容
+        bus.emit('TAB_CHANGED', currentTab);
+        
+        // Diff 页签需要额外处理高亮
+        if (currentTab === 'diff') {
+            applyDiffHighlight();
         }
 
         // 4. 更新权限
@@ -256,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         versionCompareSelect.addEventListener('change', () => {
             const compareVersion = versionCompareSelect.value;
             calculateVersionDiff(AppState.currentVersion, compareVersion);
-            renderDiffContent();
+            bus.emit('TAB_CHANGED', 'diff');
             applyDiffHighlight();
         });
     }
@@ -525,8 +517,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // 重新渲染批注列表
-        renderNotesContent();
+        // 通知批注列表更新
+        bus.emit('ANNOTATIONS_UPDATED');
 
         // 更新跨视图预警（解决问题后红灯应熄灭）
         updateCrossViewWarnings();
@@ -565,8 +557,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // 4. 重新渲染批注列表（列表会读取新的 ID）
-        renderNotesContent();
+        // 4. 通知批注列表更新（列表会读取新的 ID）
+        bus.emit('ANNOTATIONS_UPDATED');
     };
 
     // ============ 跨视图定位功能 ============
@@ -634,9 +626,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (canvasSchematic) canvasSchematic.classList.remove('hidden');
         if (canvasPcb) canvasPcb.classList.add('hidden');
-        if (currentTab === 'tree') {
-            renderTreeContent();
-        }
+        // 通知 Sidebar 刷新
+        bus.emit('VIEW_CHANGED', 'schematic');
+        bus.emit('TAB_CHANGED', currentTab);
         // 更新跨视图预警
         updateCrossViewWarnings();
 
@@ -661,9 +653,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (canvasSchematic) canvasSchematic.classList.add('hidden');
         if (canvasPcb) canvasPcb.classList.remove('hidden');
-        if (currentTab === 'tree') {
-            renderTreeContent();
-        }
+        // 通知 Sidebar 刷新
+        bus.emit('VIEW_CHANGED', 'pcb');
+        bus.emit('TAB_CHANGED', currentTab);
         // 更新跨视图预警
         updateCrossViewWarnings();
 
@@ -1310,72 +1302,15 @@ document.addEventListener('DOMContentLoaded', () => {
         versionCompareSelect.addEventListener('change', () => {
             const compareVersion = versionCompareSelect.value;
             calculateVersionDiff(AppState.currentVersion, compareVersion);
-            renderDiffContent();
+            bus.emit('TAB_CHANGED', 'diff');
             applyDiffHighlight();
         });
     }
 
-    // ============ 初始化预置批注 ============
-    function renderPresetAnnotations() {
-        // 初始化预置批注数据（只在应用启动时执行一次）
-        initPresetAnnotations();
-
-        // 为每个预置批注创建 DOM 元素
-        annotations.forEach(annotation => {
-            // 获取对应视图的批注容器
-            const container = getAnnotationContainer(annotation.viewType);
-            if (!container) return;
-
-            // 创建批注框
-            const annotationBox = document.createElement('div');
-            annotationBox.className = 'annotation-box';
-            if (annotation.status === 'resolved') {
-                annotationBox.classList.add('annotation-resolved');
-            }
-            // 使用局部坐标（相对于画布）
-            annotationBox.style.left = (annotation.centerX - 40) + 'px';
-            annotationBox.style.top = (annotation.centerY - 30) + 'px';
-            annotationBox.style.width = '80px';
-            annotationBox.style.height = '60px';
-
-            // 根据版本决定是否显示（通过样式控制）
-            if (annotation.version !== AppState.currentVersion) {
-                annotationBox.style.display = 'none';
-            }
-
-            // 添加角标
-            const badge = document.createElement('div');
-            badge.className = 'annotation-badge';
-            badge.textContent = annotation.id;
-            annotationBox.appendChild(badge);
-
-            // 点击事件
-            annotationBox.addEventListener('click', (e) => {
-                e.stopPropagation();
-                highlightAnnotation(annotation.id, annotation.version);
-            });
-
-            // 将批注框添加到对应画布的批注容器
-            container.appendChild(annotationBox);
-
-            // 更新批注数据中的 element 引用
-            annotation.element = annotationBox;
-        });
-
-        // 如果当前在批注列表页签，刷新列表
-        if (currentTab === 'notes') {
-            renderNotesContent();
-        }
-
-        // 初始化跨视图预警（确保页面加载后就有红灯）
-        updateCrossViewWarnings();
-    }
-
-    // 执行预置批注渲染（只在 DOMContentLoaded 时执行一次）
-    renderPresetAnnotations();
-
-    // 保底渲染：确保初始结构树被渲染
-    renderTreeContent();
+    // 预置批注已由 annotation.manager.js 初始化
+    // 初始渲染由 Sidebar 模块通过事件监听处理
+    bus.emit('VIEW_CHANGED', currentDrawingType);
+    bus.emit('TAB_CHANGED', currentTab);
 
     // 初始化版本选择器
     initGlobalVersionSelect();
