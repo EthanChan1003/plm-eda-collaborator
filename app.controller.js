@@ -800,35 +800,36 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 1. 初始化场景
         scene = new THREE.Scene();
-        scene.background = new THREE.Color('#1e293b'); // 暗黑工业风背景
+        scene.background = new THREE.Color('#1e293b');
 
-        // 2. 初始化相机
+        // 2. 初始化相机 (【修复】拉远相机距离，使其与 2D 视角的初始大小完美匹配)
         const width = view3dContainer.clientWidth || 500;
         const height = view3dContainer.clientHeight || 800;
-        camera = new THREE.PerspectiveCamera(45, width / height, 1, 2000);
-        camera.position.set(0, -600, 600); // 俯视等轴测视角
+        camera = new THREE.PerspectiveCamera(45, width / height, 1, 3000);
+        camera.position.set(0, -900, 1100); // 调整 Z 轴和 Y 轴，让 900x700 的板子完全居中且大小合适
 
         // 3. 初始化渲染器
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
-        // 添加阴影支持
+        // 优化阴影质量
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         view3dContainer.appendChild(renderer.domElement);
 
         // 4. 添加灯光
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // 环境光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); 
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5); // 平行光打出阴影
-        dirLight.position.set(200, -200, 400);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6); 
+        dirLight.position.set(200, -200, 600);
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // 5. 轨道控制器 (支持鼠标旋转、缩放、平移)
+        // 5. 轨道控制器
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
+        controls.target.set(0, 0, 0); // 确保镜头始终对准板子中心
 
         // 6. 绘制 PCB 物理基板
         createPcbBoard();
@@ -841,14 +842,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         animate();
 
-        // 监听窗口大小变化
-        window.addEventListener('resize', () => {
-            if (isSplitViewActive) {
-                camera.aspect = view3dContainer.clientWidth / view3dContainer.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(view3dContainer.clientWidth, view3dContainer.clientHeight);
+        // 8. 【修复核心】使用 ResizeObserver 实时监听容器变化，彻底告别拉伸变形
+        const resizeObserver = new ResizeObserver(entries => {
+            if (!isSplitViewActive || !camera || !renderer) return;
+            for (let entry of entries) {
+                const w = entry.contentRect.width;
+                const h = entry.contentRect.height;
+                // 只有当容器真正有尺寸时才更新画布
+                if (w > 0 && h > 0) {
+                    camera.aspect = w / h;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(w, h);
+                }
             }
         });
+        // 绑定观察者到 3D 容器
+        resizeObserver.observe(view3dContainer);
 
         isThreeInitialized = true;
     }
@@ -882,17 +891,11 @@ document.addEventListener('DOMContentLoaded', () => {
             view2dContainer.style.flex = '0 0 50%';
             view3dContainer.style.width = '50%';
             
-            // 延迟一点等 CSS flex 过渡完成后再初始化或重置画布大小
-            setTimeout(() => {
-                if (!isThreeInitialized) {
-                    initThreeEngine();
-                } else {
-                    camera.aspect = view3dContainer.clientWidth / view3dContainer.clientHeight;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(view3dContainer.clientWidth, view3dContainer.clientHeight);
-                }
-            }, 300);
-            
+            // 首次展开时初始化引擎
+            if (!isThreeInitialized) {
+                initThreeEngine();
+            }
+            // 尺寸的自适应将由 ResizeObserver 自动接管
         } else {
             toolSplitView.classList.remove('bg-blue-50', 'text-blue-600');
             view2dContainer.style.flex = '1';
