@@ -133,10 +133,12 @@ const presetAnnotations = [
     }
 ];
 
-// 初始化预置批注函数（按当前版本过滤）
+// 初始化预置批注（只在应用启动时执行一次）
 function initPresetAnnotations() {
-    annotations = presetAnnotations.filter(a => a.version === AppState.currentVersion);
-    annotationCounter = Math.max(...annotations.map(a => a.id), 0);
+    if (annotations.length === 0) {
+        annotations = [...presetAnnotations];
+        annotationCounter = Math.max(...annotations.map(a => a.id), 0);
+    }
 }
 
 // 画布变换状态
@@ -161,10 +163,13 @@ let currentTab = 'tree';
 // 向后兼容：mockComponentData 指向当前版本数据
 const mockComponentData = new Proxy({}, {
     get(target, prop) {
-        const currentData = getCurrentComponentData();
-        return currentData[prop];
+        return getCurrentComponentData()[prop];
     },
     ownKeys() {
-        return Object.keys(getCurrentComponentData());
+        return Reflect.ownKeys(getCurrentComponentData());
+    },
+    // 必须增加此拦截器，否则 Object.keys() 返回空数组
+    getOwnPropertyDescriptor(target, prop) {
+        return { enumerable: true, configurable: true };
     }
 });

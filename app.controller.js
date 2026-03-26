@@ -42,8 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const bubbleContent = document.getElementById('bubble-content');
     const closeBubbleBtn = document.getElementById('close-bubble');
 
-    // 初始化引擎
-    initEngine(canvasWrapper, canvasTransform);
+    // 引擎已在 core.engine.js 中初始化，无需重复调用
 
     // ============ 批注权限控制 ============
     function updateAnnotationPermissions() {
@@ -64,9 +63,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. 重新渲染结构树
         renderTreeContent();
 
-        // 3. 重新渲染批注列表（按版本过滤）
-        initPresetAnnotations();
-        renderPresetAnnotations();
+        // 3. 切换批注显示/隐藏（根据版本过滤，不重新创建）
+        annotations.forEach(annotation => {
+            if (annotation.element) {
+                const shouldShow = annotation.version === AppState.currentVersion;
+                annotation.element.style.display = shouldShow ? '' : 'none';
+            }
+        });
+        renderNotesContent();
 
         // 4. 重新计算版本差异
         if (currentTab === 'diff' && versionCompareSelect) {
@@ -172,11 +176,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 点击画布其他区域隐藏气泡
-    canvasWrapper.addEventListener('click', (e) => {
-        if (!e.target.closest('.annotation-box') && !e.target.closest('#annotation-bubble')) {
-            hideAnnotationBubble();
-        }
-    });
+    if (canvasWrapper) {
+        canvasWrapper.addEventListener('click', (e) => {
+            if (!e.target.closest('.annotation-box') && !e.target.closest('#annotation-bubble')) {
+                hideAnnotationBubble();
+            }
+        });
+    }
 
     // ============ 工具模式切换 ============
     function setToolMode(mode) {
@@ -207,9 +213,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 工具按钮事件绑定
-    toolSelect.addEventListener('click', () => setToolMode(ToolMode.SELECT));
-    toolPan.addEventListener('click', () => setToolMode(ToolMode.PAN));
-    toolRect.addEventListener('click', () => setToolMode(ToolMode.ANNOTATE));
+    if (toolSelect) toolSelect.addEventListener('click', () => setToolMode(ToolMode.SELECT));
+    if (toolPan) toolPan.addEventListener('click', () => setToolMode(ToolMode.PAN));
+    if (toolRect) toolRect.addEventListener('click', () => setToolMode(ToolMode.ANNOTATE));
 
     // ============ 画布缩放功能 ============
     // 滚轮缩放
@@ -220,11 +226,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: false });
 
     // 缩放按钮
-    toolZoomIn.addEventListener('click', () => zoom(1.2));
-    toolZoomOut.addEventListener('click', () => zoom(0.8));
+    if (toolZoomIn) toolZoomIn.addEventListener('click', () => zoom(1.2));
+    if (toolZoomOut) toolZoomOut.addEventListener('click', () => zoom(0.8));
 
     // 复位按钮
-    toolReset.addEventListener('click', () => {
+    if (toolReset) toolReset.addEventListener('click', () => {
         canvasState.scale = 1;
         canvasState.translateX = 0;
         canvasState.translateY = 0;
@@ -402,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const boxWidth = parseInt(annotationBox.style.width);
         const boxHeight = parseInt(annotationBox.style.height);
 
-        // 存储批注数据（包含视图类型、中心坐标和状态）
+        // 存储批注数据（包含视图类型、中心坐标、状态和版本）
         const annotationData = {
             id: annotationId,
             text: text,
@@ -412,7 +418,8 @@ document.addEventListener('DOMContentLoaded', () => {
             viewType: currentDrawingType,  // 记录当前视图类型
             centerX: boxLeft + boxWidth / 2,
             centerY: boxTop + boxHeight / 2,
-            status: 'open'  // 初始状态为待处理
+            status: 'open',  // 初始状态为待处理
+            version: AppState.currentVersion  // 记录当前版本
         };
         annotations.push(annotationData);
 
@@ -547,12 +554,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // 切换到原理图视图
     function switchToSchematic() {
         currentDrawingType = 'schematic';
-        btnSchematic.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
-        btnSchematic.classList.remove('text-gray-500');
-        btnPcb.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
-        btnPcb.classList.add('text-gray-500');
-        canvasSchematic.classList.remove('hidden');
-        canvasPcb.classList.add('hidden');
+        if (btnSchematic) {
+            btnSchematic.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
+            btnSchematic.classList.remove('text-gray-500');
+        }
+        if (btnPcb) {
+            btnPcb.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
+            btnPcb.classList.add('text-gray-500');
+        }
+        if (canvasSchematic) canvasSchematic.classList.remove('hidden');
+        if (canvasPcb) canvasPcb.classList.add('hidden');
         if (currentTab === 'tree') {
             renderTreeContent();
         }
@@ -561,12 +572,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // 切换到PCB视图
     function switchToPcb() {
         currentDrawingType = 'pcb';
-        btnPcb.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
-        btnPcb.classList.remove('text-gray-500');
-        btnSchematic.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
-        btnSchematic.classList.add('text-gray-500');
-        canvasSchematic.classList.add('hidden');
-        canvasPcb.classList.remove('hidden');
+        if (btnPcb) {
+            btnPcb.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
+            btnPcb.classList.remove('text-gray-500');
+        }
+        if (btnSchematic) {
+            btnSchematic.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
+            btnSchematic.classList.add('text-gray-500');
+        }
+        if (canvasSchematic) canvasSchematic.classList.add('hidden');
+        if (canvasPcb) canvasPcb.classList.remove('hidden');
         if (currentTab === 'tree') {
             renderTreeContent();
         }
@@ -946,19 +961,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    canvasContainer.addEventListener('click', () => {
-        hidePropertyCard();
-        clearAllSelection();
-    });
+    if (canvasContainer) {
+        canvasContainer.addEventListener('click', () => {
+            hidePropertyCard();
+            clearAllSelection();
+        });
+    }
 
-    popover.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
+    if (popover) {
+        popover.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
 
-    popoverClose.addEventListener('click', () => {
-        hidePropertyCard();
-        clearAllSelection();
-    });
+    if (popoverClose) {
+        popoverClose.addEventListener('click', () => {
+            hidePropertyCard();
+            clearAllSelection();
+        });
+    }
 
     // ============ 渲染树内容 ============
     function renderTreeContent() {
@@ -1141,14 +1162,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    btnSchematic.addEventListener('click', switchToSchematic);
-    btnPcb.addEventListener('click', switchToPcb);
+    if (btnSchematic) btnSchematic.addEventListener('click', switchToSchematic);
+    if (btnPcb) btnPcb.addEventListener('click', switchToPcb);
 
     // ============ 版本选择框联动 ============
     const versionBaseSelect = document.getElementById('version-base');
-    const versionCompareSelect = document.getElementById('version-compare');
 
     function handleVersionChange() {
+        if (!versionBaseSelect || !versionCompareSelect) return;
+
         const baseVersion = versionBaseSelect.value;
         const compareVersion = versionCompareSelect.value;
 
@@ -1179,7 +1201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 初始化预置批注 ============
     function renderPresetAnnotations() {
-        // 初始化预置批注数据
+        // 初始化预置批注数据（只在应用启动时执行一次）
         initPresetAnnotations();
 
         // 为每个预置批注创建 DOM 元素
@@ -1197,6 +1219,11 @@ document.addEventListener('DOMContentLoaded', () => {
             annotationBox.style.width = '80px';
             annotationBox.style.height = '60px';
 
+            // 根据版本决定是否显示
+            if (annotation.version !== AppState.currentVersion) {
+                annotationBox.style.display = 'none';
+            }
+
             // 添加角标
             const badge = document.createElement('div');
             badge.className = 'annotation-badge';
@@ -1209,7 +1236,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 highlightAnnotation(annotation.id);
             });
 
-            activeCanvas.appendChild(annotationBox);
+            if (activeCanvas) {
+                activeCanvas.appendChild(annotationBox);
+            }
 
             // 更新批注数据中的 element 引用
             annotation.element = annotationBox;
@@ -1221,6 +1250,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 执行预置批注渲染
+    // 执行预置批注渲染（只在 DOMContentLoaded 时执行一次）
     renderPresetAnnotations();
 });
