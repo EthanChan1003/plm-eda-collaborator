@@ -38,6 +38,18 @@ body {
     transform-origin: center center;
     transition: transform 0.1s ease-out;
 }
+
+/* 批注容器（在每个画布内部，随画布变换） */
+.annotations-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 40;
+}
+
 /* 批注框样式 */
 .annotation-box {
     border: 2px solid #3b82f6;

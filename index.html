@@ -161,14 +161,13 @@
             <!-- 图纸渲染区 -->
             <div id="canvas-wrapper" class="flex-1 canvas-grid relative overflow-hidden">
 
-                <!-- 批注层（独立于变换容器，不受缩放平移影响） -->
-                <div id="annotation-layer" class="absolute inset-0 pointer-events-none z-10"></div>
-
                 <!-- 变换容器（用于缩放和平移） -->
                 <div id="canvas-transform" class="canvas-transform-wrapper absolute inset-0 flex items-center justify-center">
-                    
+
                     <!-- 【原理图】SVG 容器 - V2.1 专业修复版 -->
                     <div id="canvas-schematic" class="w-[1000px] h-[800px] flex items-center justify-center bg-white relative">
+                        <!-- 批注容器（在变换组内，随画布缩放平移） -->
+                        <div class="annotations-container absolute inset-0 pointer-events-none"></div>
                         <svg class="w-full h-full" viewBox="0 0 1000 800" xmlns="http://www.w3.org/2000/svg">
                             <defs>
                                 <pattern id="grid-sch" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -445,6 +444,8 @@
 
                     <!-- 【PCB】SVG 容器 - V2.1 专业修复版 -->
                     <div id="canvas-pcb" class="w-[1000px] h-[800px] flex items-center justify-center bg-gray-50 relative hidden">
+                        <!-- 批注容器（在变换组内，随画布缩放平移） -->
+                        <div class="annotations-container absolute inset-0 pointer-events-none"></div>
                         <svg class="w-full h-full" viewBox="0 0 1000 800" xmlns="http://www.w3.org/2000/svg">
                             <defs>
                                 <marker id="arrowhead-pcb" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">

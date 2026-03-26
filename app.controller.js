@@ -15,7 +15,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvasTransform = document.getElementById('canvas-transform');
     const canvasSchematic = document.getElementById('canvas-schematic');
     const canvasPcb = document.getElementById('canvas-pcb');
-    const annotationLayer = document.getElementById('annotation-layer');
+
+    // 获取批注容器（在各自画布内部）
+    function getAnnotationContainer(viewType) {
+        const canvas = viewType === 'schematic' ? canvasSchematic : canvasPcb;
+        return canvas?.querySelector('.annotations-container');
+    }
 
     const btnSchematic = document.getElementById('btn-schematic');
     const btnPcb = document.getElementById('btn-pcb');
@@ -368,9 +373,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAnnotationBox = null;
     let drawStartX, drawStartY;
 
-    // 调试日志函数
-    function logDrawDebug(stage, scale, startX, startY, currentX, currentY) {
-        console.log(`[Draw Debug] ${stage}: scale=${scale}, start=(${startX?.toFixed(2)}, ${startY?.toFixed(2)}), current=(${currentX?.toFixed(2)}, ${currentY?.toFixed(2)})`);
+    // 获取鼠标相对于当前画布的局部坐标（画布局部坐标，随变换缩放）
+    function getCanvasLocalCoordinates(clientX, clientY) {
+        const activeCanvas = currentDrawingType === 'schematic' ? canvasSchematic : canvasPcb;
+        if (!activeCanvas) return { x: 0, y: 0 };
+        const rect = activeCanvas.getBoundingClientRect();
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
     }
 
     canvasWrapper.addEventListener('mousedown', (e) => {
@@ -379,12 +390,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         isDrawing = true;
 
-        // 使用精准坐标映射（图纸空间坐标）
-        const coords = getCanvasCoordinates(e.clientX, e.clientY);
+        // 使用画布局部坐标（随画布变换）
+        const coords = getCanvasLocalCoordinates(e.clientX, e.clientY);
         drawStartX = coords.x;
         drawStartY = coords.y;
-
-        logDrawDebug('mousedown', canvasState.scale, drawStartX, drawStartY);
 
         // 创建批注框
         currentAnnotationBox = document.createElement('div');
@@ -394,17 +403,18 @@ document.addEventListener('DOMContentLoaded', () => {
         currentAnnotationBox.style.width = '0px';
         currentAnnotationBox.style.height = '0px';
 
-        // 将批注框添加到独立的批注层（不受 canvasTransform 影响）
-        if (annotationLayer) {
-            annotationLayer.appendChild(currentAnnotationBox);
+        // 将批注框添加到当前画布的批注容器内（随画布变换）
+        const container = getAnnotationContainer(currentDrawingType);
+        if (container) {
+            container.appendChild(currentAnnotationBox);
         }
     });
 
     canvasWrapper.addEventListener('mousemove', (e) => {
         if (!isDrawing || !currentAnnotationBox) return;
 
-        // 使用精准坐标映射（图纸空间坐标）
-        const coords = getCanvasCoordinates(e.clientX, e.clientY);
+        // 使用画布局部坐标（随画布变换）
+        const coords = getCanvasLocalCoordinates(e.clientX, e.clientY);
         const currentX = coords.x;
         const currentY = coords.y;
 
@@ -412,8 +422,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const height = Math.abs(currentY - drawStartY);
         const left = Math.min(currentX, drawStartX);
         const top = Math.min(currentY, drawStartY);
-
-        logDrawDebug('mousemove', canvasState.scale, drawStartX, drawStartY, currentX, currentY);
 
         currentAnnotationBox.style.left = left + 'px';
         currentAnnotationBox.style.top = top + 'px';
@@ -533,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 高亮批注（带气泡联动）
-    function highlightAnnotation(annotationId, breathing = false) {
+    function highlightAnnotation(annotationId, version, breathing = false) {
         // 清除所有高亮
         document.querySelectorAll('.annotation-box').forEach(box => {
             box.classList.remove('selected', 'breathing');
@@ -542,9 +550,10 @@ document.addEventListener('DOMContentLoaded', () => {
             item.classList.remove('active');
         });
 
-        // 高亮对应批注
-        const annotation = annotations.find(a => a.id === annotationId);
-        if (annotation) {
+        // 高亮对应批注（使用ID+版本双重校验）
+        const targetVersion = version || AppState.currentVersion;
+        const annotation = annotations.find(a => a.id === annotationId && a.version === targetVersion);
+        if (annotation && annotation.element) {
             annotation.element.classList.add('selected');
             if (breathing) {
                 annotation.element.classList.add('breathing');
@@ -553,7 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     annotation.element.classList.remove('breathing');
                 }, 3000);
             }
-            const noteItem = document.querySelector(`[data-note-id="${annotationId}"]`);
+            const noteItem = document.querySelector(`[data-note-id="${annotationId}"][data-note-version="${targetVersion}"]`);
             if (noteItem) {
                 noteItem.classList.add('active');
                 noteItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1296,24 +1305,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 为每个预置批注创建 DOM 元素
         annotations.forEach(annotation => {
+            // 获取对应视图的批注容器
+            const container = getAnnotationContainer(annotation.viewType);
+            if (!container) return;
+
             // 创建批注框
             const annotationBox = document.createElement('div');
             annotationBox.className = 'annotation-box';
             if (annotation.status === 'resolved') {
                 annotationBox.classList.add('annotation-resolved');
             }
+            // 使用局部坐标（相对于画布）
             annotationBox.style.left = (annotation.centerX - 40) + 'px';
             annotationBox.style.top = (annotation.centerY - 30) + 'px';
             annotationBox.style.width = '80px';
             annotationBox.style.height = '60px';
 
-            // 根据版本决定是否显示
+            // 根据版本决定是否显示（通过样式控制）
             if (annotation.version !== AppState.currentVersion) {
-                annotationBox.style.display = 'none';
-            }
-
-            // 根据视图类型决定是否显示（当前视图）
-            if (annotation.viewType !== currentDrawingType) {
                 annotationBox.style.display = 'none';
             }
 
@@ -1326,13 +1335,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // 点击事件
             annotationBox.addEventListener('click', (e) => {
                 e.stopPropagation();
-                highlightAnnotation(annotation.id);
+                highlightAnnotation(annotation.id, annotation.version);
             });
 
-            // 将批注框添加到独立的批注层
-            if (annotationLayer) {
-                annotationLayer.appendChild(annotationBox);
-            }
+            // 将批注框添加到对应画布的批注容器
+            container.appendChild(annotationBox);
 
             // 更新批注数据中的 element 引用
             annotation.element = annotationBox;
