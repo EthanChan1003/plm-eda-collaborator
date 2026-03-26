@@ -91,11 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. 同步画布图元显示/隐藏
         syncCanvasComponents();
 
-        // 2. 切换批注显示/隐藏（根据版本和视图类型过滤，不重新创建）- 只操作画布DOM，不触碰左侧面板
+        // 2. 切换批注显示/隐藏（只根据版本过滤）- 只操作画布DOM，不触碰左侧面板
         annotations.forEach(annotation => {
             if (annotation.element) {
-                const shouldShow = annotation.version === AppState.currentVersion &&
-                                   annotation.viewType === currentDrawingType;
+                // 【修复】移除 annotation.viewType === currentDrawingType 的判断
+                // 因为画布自身的隐藏/显示会自然控制其内部批注的可见性
+                const shouldShow = annotation.version === AppState.currentVersion;
                 annotation.element.style.display = shouldShow ? '' : 'none';
             }
         });
