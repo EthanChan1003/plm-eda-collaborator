@@ -1448,34 +1448,39 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // 步骤 4：调用引擎生成 PDF
-        const element = document.getElementById('pdf-report-template');
-        const body = document.body;
+        // 步骤 4：调用引擎生成 PDF (离屏克隆法)
+        const originalElement = document.getElementById('pdf-report-template');
 
-        // 【关键修复】短暂提权并解除视口限制
-        element.classList.remove('hidden', 'z-[-10]');
-        element.classList.add('z-[9999]'); // 提到最顶层
-        body.classList.remove('overflow-hidden', 'h-screen'); // 放开高度限制，防止被截断
+        // 深拷贝模板
+        const clonedElement = originalElement.cloneNode(true);
+        clonedElement.id = 'pdf-report-clone'; // 避免 ID 冲突
+        clonedElement.classList.remove('hidden', 'absolute', 'z-[-10]', 'top-0', 'left-0');
+
+        // 创建离屏容器
+        const offScreenContainer = document.createElement('div');
+        offScreenContainer.style.position = 'absolute';
+        offScreenContainer.style.left = '-9999px';
+        offScreenContainer.style.top = '0';
+        offScreenContainer.appendChild(clonedElement);
+        document.body.appendChild(offScreenContainer);
 
         const opt = {
             margin: 0,
             filename: `硬件评审报告_${AppState.currentVersion}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, // scrollY: 0 防止滚动条导致的错位
+            html2canvas: { scale: 2, useCORS: true, logging: false },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
-        html2pdf().set(opt).from(element).save().then(() => {
-            // 导出成功后恢复原状
-            element.classList.add('hidden', 'z-[-10]');
-            element.classList.remove('z-[9999]');
-            body.classList.add('overflow-hidden', 'h-screen');
+        // 针对克隆节点生成 PDF
+        html2pdf().set(opt).from(clonedElement).save().then(() => {
+            // 生成完毕后销毁离屏容器
+            document.body.removeChild(offScreenContainer);
         }).catch(err => {
             console.error('PDF 导出失败:', err);
-            // 导出报错也必须恢复原状
-            element.classList.add('hidden', 'z-[-10]');
-            element.classList.remove('z-[9999]');
-            body.classList.add('overflow-hidden', 'h-screen');
+            if (document.body.contains(offScreenContainer)) {
+                document.body.removeChild(offScreenContainer);
+            }
             alert('PDF 导出失败，请重试');
         });
     }
