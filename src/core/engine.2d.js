@@ -26,3 +26,39 @@ export function updateCanvasState(newState) {
 export function setToolMode(mode) {
     currentToolMode = mode;
 }
+
+// ============ 2D 渲染引擎 ============
+
+// 画布变换应用
+export function updateCanvasTransform(canvasTransform, canvasState) {
+    if (!canvasTransform) return;
+    canvasTransform.style.transform = `translate(${canvasState.translateX}px, ${canvasState.translateY}px) scale(${canvasState.scale})`;
+}
+
+// 缩放数学计算
+export function zoom(factor, centerX, centerY, canvasWrapper, canvasState, updateStateCallback) {
+    if (!canvasWrapper) return;
+    const newScale = Math.max(0.2, Math.min(5, canvasState.scale * factor));
+
+    let newTranslateX = canvasState.translateX;
+    let newTranslateY = canvasState.translateY;
+
+    if (centerX !== undefined && centerY !== undefined) {
+        const rect = canvasWrapper.getBoundingClientRect();
+        const mouseX = centerX - rect.left;
+        const mouseY = centerY - rect.top;
+        
+        newTranslateX = mouseX - (mouseX - canvasState.translateX) * (newScale / canvasState.scale);
+        newTranslateY = mouseY - (mouseY - canvasState.translateY) * (newScale / canvasState.scale);
+    }
+    
+    if (updateStateCallback) {
+        updateStateCallback({
+            scale: newScale,
+            translateX: newTranslateX,
+            translateY: newTranslateY
+        });
+    }
+    
+    return { scale: newScale, translateX: newTranslateX, translateY: newTranslateY };
+}

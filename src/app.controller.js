@@ -2,11 +2,17 @@
 import { AppState } from './core/state.js';
 import { bus } from './core/event.bus.js';
 import { versionedComponentData, versionDiffLibrary, presetAnnotations } from './data/mock.data.js';
-import { canvasState, ToolMode, currentToolMode, updateCanvasState, setToolMode as setToolModeModule } from './core/engine.2d.js';
+import { canvasState, updateCanvasState } from './core/engine.2d.js';
 
 // 兜底引入拆分出去的功能，防止旧代码报错
 import * as Mcad3D from './features/mcad.3d.js';
 import * as ExportPdf from './features/export.pdf.js';
+
+// 建立局部变量映射，修复重构导致的上下文变量丢失
+let currentDrawingType = AppState.currentDrawingType;
+let currentTab = AppState.currentTab;
+const ToolMode = { SELECT: 'SELECT', PAN: 'PAN', ANNOTATE: 'ANNOTATE' };
+let currentToolMode = ToolMode.SELECT;
 
 // 1. 恢复之前 config.data.js 中被删掉的动态数据变量
 let mockComponentData = { ...versionedComponentData[AppState.currentVersion] };
@@ -334,8 +340,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 工具模式切换 ============
     function setToolMode(mode) {
-        // 同步到模块状态
-        setToolModeModule(mode);
+        // 同步到局部变量
+        currentToolMode = mode;
         
         // 重置所有工具按钮状态
         toolSelect.classList.remove('tool-active');
