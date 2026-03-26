@@ -442,6 +442,9 @@ window.toggleAnnotationStatus = function(id, version) {
     }
     
     bus.emit('ANNOTATION_STATUS_CHANGED', annotation);
+    
+    // 触发反应式更新
+    bus.emit('ANNOTATIONS_UPDATED', annotations);
 };
 
 /**

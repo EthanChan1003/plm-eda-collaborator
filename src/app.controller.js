@@ -363,6 +363,23 @@ document.addEventListener('DOMContentLoaded', () => {
         setToolMode(mode);
     });
 
+    // 监听视图切换，同步工具栏 UI（修复 3D 按钮消失问题）
+    bus.on('VIEW_CHANGED', (viewType) => {
+        currentDrawingType = viewType;
+        if (toolSplitView) {
+            // 仅在 PCB 模式下显示 3D 分屏按钮
+            if (viewType === 'pcb') {
+                toolSplitView.classList.remove('hidden');
+            } else {
+                toolSplitView.classList.add('hidden');
+                // 如果当前正在分屏模式切换回原理图，需强制关闭分屏
+                if (AppState.isSplitViewActive && typeof toggleSplitView === 'function') {
+                    toggleSplitView();
+                }
+            }
+        }
+    });
+
     // ============ 批注工具下拉菜单交互 ============
     const annotationMainBtn = document.getElementById('annotation-main-btn');
     const annotationSubMenu = document.getElementById('annotation-sub-menu');
