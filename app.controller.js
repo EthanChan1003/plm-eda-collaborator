@@ -55,6 +55,24 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Canvas elements not found, engine initialization failed');
     }
 
+    // ============ 新增：PCB 图层状态机 ============
+    let pcbLayerState = {
+        top: true,
+        bottom: true,
+        silkscreen: true
+    };
+
+    // 暴露到全局，以便重新渲染 UI 时调用
+    window.togglePcbLayer = function(layerName, isVisible) {
+        pcbLayerState[layerName] = isVisible;
+        const group = document.getElementById(`pcb-layer-${layerName}`);
+        if (group) {
+            // 使用 opacity 保证过渡平滑，pointerEvents 防止隐藏层遮挡点击
+            group.style.opacity = isVisible ? '1' : '0';
+            group.style.pointerEvents = isVisible ? 'auto' : 'none';
+        }
+    };
+
     // ============ 批注权限控制 ============
     function updateAnnotationPermissions() {
         const isLatest = AppState.currentVersion === AppState.latestVersion;
@@ -1256,18 +1274,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             <i class="fas fa-layer-group mr-2 text-gray-400"></i>图层管理
                         </div>
                         <div class="ml-4 space-y-1 mt-1">
-                            <div class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" checked class="mr-3 w-3 h-3 accent-blue-600">
+                            <label class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" id="cb-layer-top" ${pcbLayerState.top ? 'checked' : ''} class="mr-3 w-3 h-3 accent-blue-600">
                                 <span class="text-gray-600">Top Layer (顶层信号)</span>
-                            </div>
-                            <div class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" checked class="mr-3 w-3 h-3 accent-blue-600">
+                            </label>
+                            <label class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" id="cb-layer-bottom" ${pcbLayerState.bottom ? 'checked' : ''} class="mr-3 w-3 h-3 accent-blue-600">
                                 <span class="text-gray-600">Bottom Layer (底层信号)</span>
-                            </div>
-                            <div class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
-                                <input type="checkbox" checked class="mr-3 w-3 h-3 accent-blue-600">
+                            </label>
+                            <label class="flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer">
+                                <input type="checkbox" id="cb-layer-silkscreen" ${pcbLayerState.silkscreen ? 'checked' : ''} class="mr-3 w-3 h-3 accent-blue-600">
                                 <span class="text-gray-600">Top Silkscreen (丝印)</span>
-                            </div>
+                            </label>
                         </div>
                     </div>
                     <div class="mt-4">
@@ -1282,6 +1300,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
+
+            // 必须在这里重新绑定事件，因为 innerHTML 会销毁旧的 DOM
+            document.getElementById('cb-layer-top')?.addEventListener('change', (e) => togglePcbLayer('top', e.target.checked));
+            document.getElementById('cb-layer-bottom')?.addEventListener('change', (e) => togglePcbLayer('bottom', e.target.checked));
+            document.getElementById('cb-layer-silkscreen')?.addEventListener('change', (e) => togglePcbLayer('silkscreen', e.target.checked));
         }
         bindSvgEvents();
     }
