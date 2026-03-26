@@ -7,6 +7,7 @@ import { canvasState, updateCanvasState } from './core/engine.2d.js';
 // 兜底引入拆分出去的功能，防止旧代码报错
 import * as Mcad3D from './features/mcad.3d.js';
 import * as ExportPdf from './features/export.pdf.js';
+import { getAnnotations } from './features/annotation.manager.js';
 
 // 建立局部变量映射，修复重构导致的上下文变量丢失
 let currentDrawingType = AppState.currentDrawingType;
@@ -128,15 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. 同步画布图元显示/隐藏
         syncCanvasComponents();
 
-        // 2. 切换批注显示/隐藏（只根据版本过滤）- 只操作画布DOM，不触碰左侧面板
-        annotations.forEach(annotation => {
-            if (annotation.element) {
-                // 【修复】移除 annotation.viewType === currentDrawingType 的判断
-                // 因为画布自身的隐藏/显示会自然控制其内部批注的可见性
-                const shouldShow = annotation.version === AppState.currentVersion;
-                annotation.element.style.display = shouldShow ? '' : 'none';
-            }
-        });
+        // 2. 通知批注管理器切换版本
+        bus.emit('VERSION_CHANGED', AppState.currentVersion);
 
         // 3. 根据当前激活的页签，通知 Sidebar 刷新对应内容
         bus.emit('TAB_CHANGED', currentTab);
@@ -256,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============ 批注气泡系统 ============
     function showAnnotationBubble(annotationId, version) {
         const targetVersion = version || AppState.currentVersion;
-        const annotation = annotations.find(a => a.id === annotationId && a.version === targetVersion);
+        const annotation = getAnnotations().find(a => a.id === annotationId && a.version === targetVersion);
         if (!annotation || !annotation.element) return;
 
         // 定位气泡
@@ -445,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             translateX: e.clientX - panStartX,
             translateY: e.clientY - panStartY
         });
-        updateCanvasTransform();
+        bus.emit('CANVAS_STATE_CHANGED');
     });
 
     canvasWrapper.addEventListener('mouseup', () => {
@@ -476,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 高亮对应批注（使用ID+版本双重校验）
         const targetVersion = version || AppState.currentVersion;
-        const annotation = annotations.find(a => a.id === annotationId && a.version === targetVersion);
+        const annotation = getAnnotations().find(a => a.id === annotationId && a.version === targetVersion);
         if (annotation && annotation.element) {
             annotation.element.classList.add('selected');
             if (breathing) {
@@ -502,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.toggleAnnotationStatus = function(id, version) {
         // 优先使用传入的版本，否则使用当前版本
         const targetVersion = version || AppState.currentVersion;
-        const annotation = annotations.find(a => a.id === id && a.version === targetVersion);
+        const annotation = getAnnotations().find(a => a.id === id && a.version === targetVersion);
         if (!annotation) return;
         
         // 在 'open' 和 'resolved' 之间切换
@@ -528,44 +522,23 @@ document.addEventListener('DOMContentLoaded', () => {
     window.deleteAnnotation = function(id, version) {
         // 优先使用传入的版本，否则使用当前版本
         const targetVersion = version || AppState.currentVersion;
-        const index = annotations.findIndex(a => a.id === id && a.version === targetVersion);
-        if (index === -1) return;
-        
-        const annotation = annotations[index];
+        const annotation = getAnnotations().find(a => a.id === id && a.version === targetVersion);
+        if (!annotation) return;
         
         // 1. 从 DOM 中移除对应的批注框
         if (annotation.element && annotation.element.parentNode) {
             annotation.element.parentNode.removeChild(annotation.element);
         }
         
-        // 2. 从全局数组中移除
-        annotations.splice(index, 1);
-        
-        // 3. 【修复核心】重排同版本下剩余批注的 ID
-        let newId = 1;
-        annotations.forEach(a => {
-            if (a.version === targetVersion) {
-                a.id = newId++; // 重新赋予连续的序号
-                
-                // 同步更新画布上批注框的角标数字
-                if (a.element) {
-                    const badge = a.element.querySelector('.annotation-badge');
-                    if (badge) {
-                        badge.textContent = a.id;
-                    }
-                }
-            }
-        });
-        
-        // 4. 通知批注列表更新（列表会读取新的 ID）
-        bus.emit('ANNOTATIONS_UPDATED');
+        // 2. 通过事件总线通知批注管理器删除
+        bus.emit('ANNOTATION_DELETE', { id, version: targetVersion });
     };
 
     // ============ 跨视图定位功能 ============
     window.locateAnnotation = function(annotationId, version) {
         // 优先使用传入的版本，否则使用当前版本进行双重校验
         const targetVersion = version || AppState.currentVersion;
-        const annotation = annotations.find(a => a.id === annotationId && a.version === targetVersion);
+        const annotation = getAnnotations().find(a => a.id === annotationId && a.version === targetVersion);
         if (!annotation) return;
 
         // 步骤1：检查视图类型，如果不匹配则切换
@@ -596,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             translateX: targetTranslateX,
             translateY: targetTranslateY
         });
-        updateCanvasTransform();
+        bus.emit('CANVAS_STATE_CHANGED');
 
         // 恢复快速响应
         setTimeout(() => {
@@ -1099,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
         } else if (currentTab === 'notes') {
             // 批注列表模式：搜索批注内容
-            matches = annotations.filter(note => 
+            matches = getAnnotations().filter(note =>
                 note.text.toUpperCase().includes(upperQuery)
             );
             if (matches.length === 0 || query === '') {
@@ -1172,7 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         searchInput.blur();
                     }
                 } else if (currentTab === 'notes') {
-                    const match = annotations.find(note =>
+                    const match = getAnnotations().find(note =>
                         note.text.toUpperCase().includes(value.toUpperCase())
                     );
                     if (match) {
@@ -1242,7 +1215,9 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    renderTreeContent();
+    // 初始渲染由 Sidebar 通过事件监听处理
+    bus.emit('VIEW_CHANGED', currentDrawingType);
+    bus.emit('TAB_CHANGED', currentTab);
 
     // ============ Tab 切换逻辑 ============
     tabButtons.forEach(btn => {
@@ -1351,7 +1326,7 @@ document.addEventListener('DOMContentLoaded', () => {
             snapshotImg.src = imageData;
 
             // 步骤 1：数据计算 - 过滤当前版本的批注
-            const versionAnnotations = annotations.filter(a => a.version === AppState.currentVersion);
+            const versionAnnotations = getAnnotations().filter(a => a.version === AppState.currentVersion);
             const totalCount = versionAnnotations.length;
             const openCount = versionAnnotations.filter(a => a.status === 'open').length;
             const resolvedCount = versionAnnotations.filter(a => a.status === 'resolved').length;
