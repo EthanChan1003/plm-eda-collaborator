@@ -656,15 +656,31 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const annotation = annotations[index];
         
-        // 从 DOM 中移除对应的批注框
+        // 1. 从 DOM 中移除对应的批注框
         if (annotation.element && annotation.element.parentNode) {
             annotation.element.parentNode.removeChild(annotation.element);
         }
         
-        // 从全局数组中移除
+        // 2. 从全局数组中移除
         annotations.splice(index, 1);
         
-        // 重新渲染批注列表
+        // 3. 【修复核心】重排同版本下剩余批注的 ID
+        let newId = 1;
+        annotations.forEach(a => {
+            if (a.version === targetVersion) {
+                a.id = newId++; // 重新赋予连续的序号
+                
+                // 同步更新画布上批注框的角标数字
+                if (a.element) {
+                    const badge = a.element.querySelector('.annotation-badge');
+                    if (badge) {
+                        badge.textContent = a.id;
+                    }
+                }
+            }
+        });
+        
+        // 4. 重新渲染批注列表（列表会读取新的 ID）
         renderNotesContent();
     };
 
