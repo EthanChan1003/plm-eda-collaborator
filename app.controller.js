@@ -988,4 +988,81 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnSchematic.addEventListener('click', switchToSchematic);
     btnPcb.addEventListener('click', switchToPcb);
+
+    // ============ 版本选择框联动 ============
+    const versionSelects = document.querySelectorAll('#panel-top-diff select');
+    if (versionSelects.length >= 2) {
+        // 基准版本选择框
+        versionSelects[0].addEventListener('change', (e) => {
+            const baseVersion = e.target.value.split(' ')[0];
+            const compareVersion = versionSelects[1].value;
+            if (baseVersion && compareVersion && compareVersion !== '请选择版本') {
+                const versionKey = `${baseVersion}->${compareVersion}`;
+                if (switchVersionDiff(versionKey)) {
+                    renderDiffContent();
+                    applyDiffHighlight();
+                }
+            }
+        });
+
+        // 对比版本选择框
+        versionSelects[1].addEventListener('change', (e) => {
+            const compareVersion = e.target.value;
+            const baseVersion = versionSelects[0].value.split(' ')[0];
+            if (compareVersion && compareVersion !== '请选择版本') {
+                const versionKey = `${baseVersion}->${compareVersion}`;
+                if (switchVersionDiff(versionKey)) {
+                    renderDiffContent();
+                    applyDiffHighlight();
+                }
+            }
+        });
+    }
+
+    // ============ 初始化预置批注 ============
+    function renderPresetAnnotations() {
+        // 初始化预置批注数据
+        initPresetAnnotations();
+
+        // 为每个预置批注创建 DOM 元素
+        annotations.forEach(annotation => {
+            const activeCanvas = annotation.viewType === 'schematic' ? canvasSchematic : canvasPcb;
+
+            // 创建批注框
+            const annotationBox = document.createElement('div');
+            annotationBox.className = 'annotation-box';
+            if (annotation.status === 'resolved') {
+                annotationBox.classList.add('annotation-resolved');
+            }
+            annotationBox.style.left = (annotation.centerX - 40) + 'px';
+            annotationBox.style.top = (annotation.centerY - 30) + 'px';
+            annotationBox.style.width = '80px';
+            annotationBox.style.height = '60px';
+
+            // 添加角标
+            const badge = document.createElement('div');
+            badge.className = 'annotation-badge';
+            badge.textContent = annotation.id;
+            annotationBox.appendChild(badge);
+
+            // 点击事件
+            annotationBox.addEventListener('click', (e) => {
+                e.stopPropagation();
+                highlightAnnotation(annotation.id);
+            });
+
+            activeCanvas.appendChild(annotationBox);
+
+            // 更新批注数据中的 element 引用
+            annotation.element = annotationBox;
+        });
+
+        // 如果当前在批注列表页签，刷新列表
+        if (currentTab === 'notes') {
+            renderNotesContent();
+        }
+    }
+
+    // 执行预置批注渲染
+    renderPresetAnnotations();
 });

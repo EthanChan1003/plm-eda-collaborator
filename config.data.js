@@ -1,16 +1,41 @@
-// 版本差异数据 - V1.0 到 V2.0 的变更
-const mockDiffData = {
-    'U2': { type: 'added', desc: '新增 LDO 稳压芯片' },
-    'R1': { type: 'modified', desc: '阻值变更', oldVal: '10K', newVal: '20K', attr: 'PartNumber' },
-    'C3': { type: 'deleted', desc: '移除冗余退耦电容' },
-    'D1': { 
-        type: 'moved', 
-        desc: '位置微调避让结构件', 
-        oldVal: '(X: 120, Y: 300)', 
-        newVal: '(X: 150, Y: 300)', 
-        attr: 'Location (坐标)' 
+// 多版本差异矩阵库
+const versionDiffLibrary = {
+    'V1.0->V2.0': {
+        'U2': { type: 'added', desc: '新增 LDO 稳压芯片' },
+        'R1': { type: 'modified', desc: '阻值变更', oldVal: '10K', newVal: '20K', attr: 'PartNumber' },
+        'C3': { type: 'deleted', desc: '移除冗余退耦电容' },
+        'D1': {
+            type: 'moved',
+            desc: '位置微调避让结构件',
+            oldVal: '(X: 120, Y: 300)',
+            newVal: '(X: 150, Y: 300)',
+            attr: 'Location (坐标)'
+        }
+    },
+    'V2.0->V2.1': {
+        'C4': { type: 'added', desc: '优化接口电源质量' },
+        'R2': { type: 'modified', desc: '调整匹配电阻', oldVal: '4.7K', newVal: '10K', attr: 'PartNumber' },
+        'Y1': {
+            type: 'moved',
+            desc: '缩短时钟走线长度',
+            oldVal: '(X: 620, Y: 290)',
+            newVal: '(X: 600, Y: 290)',
+            attr: 'Location (坐标)'
+        }
     }
 };
+
+// 当前激活的版本差异数据（默认 V1.0->V2.0）
+let mockDiffData = { ...versionDiffLibrary['V1.0->V2.0'] };
+
+// 版本切换函数
+function switchVersionDiff(versionKey) {
+    if (versionDiffLibrary[versionKey]) {
+        mockDiffData = { ...versionDiffLibrary[versionKey] };
+        return true;
+    }
+    return false;
+}
 
 // 模拟物料数据 - V2.1 完整版 (11个器件)
 const mockComponentData = {
@@ -107,6 +132,49 @@ const mockComponentData = {
 // 批注数据存储
 let annotations = [];
 let annotationCounter = 0;
+
+// 预置批注数据（演示用）
+const presetAnnotations = [
+    {
+        id: 1,
+        text: '建议增加散热过孔，目前高负载下温升过快',
+        time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
+        author: '张三',
+        viewType: 'pcb',
+        targetRef: 'U1',
+        centerX: 430,
+        centerY: 360,
+        status: 'open'
+    },
+    {
+        id: 2,
+        text: '阻值与最新 BOM 不符，请确认是 330R 还是 1K',
+        time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
+        author: '李四',
+        viewType: 'schematic',
+        targetRef: 'R3',
+        centerX: 780,
+        centerY: 320,
+        status: 'resolved'
+    },
+    {
+        id: 3,
+        text: 'J1 接口丝印字号太小，生产可能模糊',
+        time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
+        author: '王五',
+        viewType: 'pcb',
+        targetRef: 'J1',
+        centerX: 125,
+        centerY: 640,
+        status: 'open'
+    }
+];
+
+// 初始化预置批注函数
+function initPresetAnnotations() {
+    annotations = [...presetAnnotations];
+    annotationCounter = annotations.length;
+}
 
 // 画布变换状态
 let canvasState = {
