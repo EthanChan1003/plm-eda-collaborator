@@ -91,9 +91,8 @@ function calculateVersionDiff(currentVersion, compareVersion) {
 
 // 批注数据存储
 let annotations = [];
-let annotationCounter = 0;
 
-// 预置批注数据（按版本隔离）
+// 预置批注数据（按版本隔离，每个版本内 ID 独立从 1 开始）
 const presetAnnotations = [
     {
         id: 1,
@@ -108,7 +107,7 @@ const presetAnnotations = [
         version: 'V2.1'
     },
     {
-        id: 2,
+        id: 1,
         text: '阻值与最新 BOM 不符，请确认是 330R 还是 1K',
         time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
         author: '李四',
@@ -120,7 +119,7 @@ const presetAnnotations = [
         version: 'V2.0'
     },
     {
-        id: 3,
+        id: 2,
         text: 'J1 接口丝印字号太小，生产可能模糊',
         time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
         author: '王五',
@@ -133,11 +132,22 @@ const presetAnnotations = [
     }
 ];
 
+// 获取指定版本的下一个批注 ID（版本内独立计数）
+function getNextAnnotationId(version) {
+    // 过滤出该版本的所有批注
+    const versionAnnotations = annotations.filter(a => a.version === version);
+    // 找到最大 ID，如果没有则返回 1
+    if (versionAnnotations.length === 0) {
+        return 1;
+    }
+    const maxId = Math.max(...versionAnnotations.map(a => a.id));
+    return maxId + 1;
+}
+
 // 初始化预置批注（只在应用启动时执行一次）
 function initPresetAnnotations() {
     if (annotations.length === 0) {
         annotations = [...presetAnnotations];
-        annotationCounter = Math.max(...annotations.map(a => a.id), 0);
     }
 }
 

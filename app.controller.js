@@ -490,8 +490,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 保存批注
     function saveAnnotation(annotationBox, text) {
-        annotationCounter++;
-        const annotationId = annotationCounter;
+        // 使用版本级 ID 生成器获取新 ID
+        const annotationId = getNextAnnotationId(AppState.currentVersion);
 
         // 添加角标
         const badge = document.createElement('div');
@@ -565,8 +565,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============ 批注状态切换功能 ============
-    window.toggleAnnotationStatus = function(id) {
-        const annotation = annotations.find(a => a.id === id);
+    window.toggleAnnotationStatus = function(id, version) {
+        // 优先使用传入的版本，否则使用当前版本
+        const targetVersion = version || AppState.currentVersion;
+        const annotation = annotations.find(a => a.id === id && a.version === targetVersion);
         if (!annotation) return;
         
         // 在 'open' 和 'resolved' 之间切换
@@ -586,8 +588,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ============ 批注删除功能 ============
-    window.deleteAnnotation = function(id) {
-        const index = annotations.findIndex(a => a.id === id);
+    window.deleteAnnotation = function(id, version) {
+        // 优先使用传入的版本，否则使用当前版本
+        const targetVersion = version || AppState.currentVersion;
+        const index = annotations.findIndex(a => a.id === id && a.version === targetVersion);
         if (index === -1) return;
         
         const annotation = annotations[index];
@@ -605,8 +609,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ============ 跨视图定位功能 ============
-    window.locateAnnotation = function(annotationId) {
-        const annotation = annotations.find(a => a.id === annotationId);
+    window.locateAnnotation = function(annotationId, version) {
+        // 优先使用传入的版本，否则使用当前版本进行双重校验
+        const targetVersion = version || AppState.currentVersion;
+        const annotation = annotations.find(a => a.id === annotationId && a.version === targetVersion);
         if (!annotation) return;
 
         // 步骤1：检查视图类型，如果不匹配则切换
@@ -771,12 +777,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const cardBgClass = isResolved ? 'bg-gray-50' : 'bg-white';
             const textClass = isResolved ? 'line-through text-gray-400' : 'text-gray-600';
 
-            // 删除按钮：仅最新版本显示
+            // 删除按钮：仅最新版本显示（传入版本信息确保准确定位）
             const deleteBtn = isLatest ?
-                `<i class="fas fa-trash text-xs cursor-pointer text-gray-400 hover:text-red-500 delete-btn" onclick="event.stopPropagation(); deleteAnnotation(${note.id})" title="删除批注"></i>` : '';
+                `<i class="fas fa-trash text-xs cursor-pointer text-gray-400 hover:text-red-500 delete-btn" onclick="event.stopPropagation(); deleteAnnotation(${note.id}, '${note.version}')" title="删除批注"></i>` : '';
 
             notesHTML += `
-                <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass}" data-note-id="${note.id}">
+                <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass}" data-note-id="${note.id}" data-note-version="${note.version}">
                     <div class="flex items-center justify-between mb-1">
                         <div class="flex items-center space-x-2">
                             <span class="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">${note.id}</span>
@@ -785,7 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div class="flex items-center space-x-2">
                             <span class="text-[10px] text-gray-400">${note.time}</span>
-                            <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id})" title="${isResolved ? '已解决，点击标记为待处理' : '待处理，点击标记为已解决'}"></i>
+                            <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id}, '${note.version}')" title="${isResolved ? '已解决，点击标记为待处理' : '待处理，点击标记为已解决'}"></i>
                             ${deleteBtn}
                         </div>
                     </div>
@@ -797,11 +803,12 @@ document.addEventListener('DOMContentLoaded', () => {
         notesHTML += '</div>';
         tabContent.innerHTML = notesHTML;
 
-        // 绑定点击事件 - 使用跨视图定位
+        // 绑定点击事件 - 使用跨视图定位（传入版本信息确保准确定位）
         document.querySelectorAll('.note-item').forEach(item => {
             item.addEventListener('click', () => {
                 const noteId = parseInt(item.getAttribute('data-note-id'));
-                locateAnnotation(noteId);
+                const noteVersion = item.getAttribute('data-note-version');
+                locateAnnotation(noteId, noteVersion);
             });
         });
     }
