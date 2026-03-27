@@ -1,5 +1,7 @@
 import { AppState } from '../core/state.js';
 import { bus } from '../core/event.bus.js';
+// === 新增：引入版本化的组件数据 ===
+import { versionedComponentData } from '../data/mock.data.js';
 
 // === 修改：提升作用域至模块顶部 ===
 let scene, camera, renderer, controls;
@@ -192,6 +194,15 @@ export function initThreeEngine(container) {
         }
     });
     // =======================
+
+    // === 监听版本切换事件，实现 3D 视图同步 ===
+    bus.on('VERSION_CHANGED', (newVersion) => {
+        sync3DComponentsByVersion(newVersion);
+    });
+
+    // 在初始化末尾立即执行一次同步，确保初始视图正确
+    sync3DComponentsByVersion(AppState.currentVersion);
+    // ==========================================
 
     // 6. 绘制 PCB 物理基板
     createPcbBoard();
@@ -397,6 +408,41 @@ function createTraces(targetScene, layers3D) {
     bottomPaths.forEach(p => {
         const d = p.getAttribute('d');
         if(d) parsePathToLine(d, -8.1, 0x3b82f6, layers3D.bottom);
+    });
+}
+
+/**
+ * 根据传入的版本号同步 3D 视图中的组件显隐与位置
+ */
+function sync3DComponentsByVersion(version) {
+    if (!pcbLayers3D) return;
+
+    const currentVersionData = versionedComponentData[version] || {};
+
+    // 遍历所有受管理的图层组（top 和 bottom）
+    ['top', 'bottom'].forEach(layerKey => {
+        const group = pcbLayers3D[layerKey];
+        if (!group) return;
+
+        group.children.forEach(mesh => {
+            const ref = mesh.userData.ref;
+            if (!ref) return;
+
+            // 1. 同步显隐：如果该位号不在当前版本数据中，则隐藏
+            const existsInVersion = ref in currentVersionData;
+            mesh.visible = existsInVersion;
+
+            // 2. 同步特殊位移：还原 V2.1 中 Y1 的位置变更逻辑
+            if (ref === 'Y1') {
+                if (version === 'V2.1') {
+                    // 对应 2D 的 translate(-20, 0)，3D 中 X 轴减少 20 单位
+                    // 注意：这里基于我们在 createComponents 中设定的初始位置进行偏移
+                    mesh.position.x = 130; // 原始中心 150 - 20
+                } else {
+                    mesh.position.x = 150; // 恢复原始中心
+                }
+            }
+        });
     });
 }
 
