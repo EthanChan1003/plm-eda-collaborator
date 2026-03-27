@@ -110,16 +110,6 @@ export function initThreeEngine(container) {
         isUpdatingFrom2D = false;
     });
 
-    // 3. 联动"适应屏幕"重置按钮
-    bus.on('ZOOM_RESET', () => {
-        if (!AppState.isSplitViewActive) return;
-        isUpdatingFrom2D = true;
-        camera.position.set(0, -900, 1100); // 恢复初始相机位置
-        controls.target.set(0, 0, 0);       // 恢复初始聚焦点
-        controls.update();
-        isUpdatingFrom2D = false;
-    });
-
     // 6. 绘制 PCB 物理基板
     createPcbBoard();
     
