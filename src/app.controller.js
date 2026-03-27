@@ -513,9 +513,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 通知批注列表更新
         bus.emit('ANNOTATIONS_UPDATED');
-
-        // 更新跨视图预警（解决问题后红灯应熄灭）
-        updateCrossViewWarnings();
     };
 
     // ============ 批注删除功能 ============
@@ -602,8 +599,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // 通知 Sidebar 刷新
         bus.emit('VIEW_CHANGED', 'schematic');
         bus.emit('TAB_CHANGED', currentTab);
-        // 更新跨视图预警
-        updateCrossViewWarnings();
 
         // 隐藏分屏按钮，原理图不支持 3D 视图
         if (toolSplitView) toolSplitView.classList.add('hidden');
@@ -629,8 +624,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // 通知 Sidebar 刷新
         bus.emit('VIEW_CHANGED', 'pcb');
         bus.emit('TAB_CHANGED', currentTab);
-        // 更新跨视图预警
-        updateCrossViewWarnings();
 
         // 显示分屏按钮，PCB 视图支持 3D 协同
         if (toolSplitView) toolSplitView.classList.remove('hidden');
