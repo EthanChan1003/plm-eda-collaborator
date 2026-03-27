@@ -35,21 +35,22 @@ export function initSidebar() {
         }
     });
     
-    // 监听 Tab 切换
+    // === 修改 Sidebar 的 Tab 切换监听 ===
     bus.on('TAB_CHANGED', (tabKey) => {
         currentTab = tabKey;
-        switch (tabKey) {
-            case 'tree':
-                renderTreeContent();
-                break;
-            case 'diff':
-                renderDiffContent();
-                break;
-            case 'notes':
-                renderNotesContent();
-                break;
-            default:
-                tabContent.innerHTML = '<div class="p-4 text-gray-400 italic text-center text-xs">占位内容...</div>';
+        if (!tabContent) return;
+
+        // 【核心修复】：如果是协同记录 (collab) 页签，Sidebar 直接放权，不做任何清空或渲染操作！
+        if (tabKey === 'collab') {
+            return;
+        }
+
+        if (tabKey === 'tree' || tabKey === 'diff') {
+            renderTreeContent();
+        } else if (tabKey === 'notes') {
+            renderNotesContent();
+        } else {
+            tabContent.innerHTML = ''; // 只有真正的未知页签才清空
         }
     });
     
