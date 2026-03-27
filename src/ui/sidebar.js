@@ -35,22 +35,26 @@ export function initSidebar() {
         }
     });
     
-    // === 修改 Sidebar 的 Tab 切换监听 ===
+    // 监听 Tab 切换
     bus.on('TAB_CHANGED', (tabKey) => {
         currentTab = tabKey;
+        const tabContent = document.getElementById('tab-content');
         if (!tabContent) return;
 
-        // 【核心修复】：如果是协同记录 (collab) 页签，Sidebar 直接放权，不做任何清空或渲染操作！
+        // 如果是协同记录 (collab) 页签，Sidebar 直接放权，交给 idx.manager 处理
         if (tabKey === 'collab') {
             return;
         }
 
-        if (tabKey === 'tree' || tabKey === 'diff') {
+        // === 核心修复：分离 tree 和 diff 的渲染调用 ===
+        if (tabKey === 'tree') {
             renderTreeContent();
+        } else if (tabKey === 'diff') {
+            renderDiffContent();
         } else if (tabKey === 'notes') {
             renderNotesContent();
         } else {
-            tabContent.innerHTML = ''; // 只有真正的未知页签才清空
+            tabContent.innerHTML = ''; // 未知页签清空
         }
     });
     
