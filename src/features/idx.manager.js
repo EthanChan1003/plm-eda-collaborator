@@ -13,11 +13,30 @@ export function initIdxManager() {
         return;
     }
 
-    // 监听 Tab 切换，如果在 collab 页签，则渲染 IDX 面板
+    // 监听 Tab 切换，如果在 collab 页签，则渲染 IDX 面板并唤起 3D
     bus.on('TAB_CHANGED', (tabKey) => {
         currentTab = tabKey;
         if (tabKey === 'collab') {
             renderIdxPanel(tabContent);
+
+            // === 新增：自动切至 PCB 视图并打开 3D 分屏 ===
+            // 稍微延迟 50ms 执行，避免阻塞当前帧的渲染
+            setTimeout(() => {
+                // 如果当前不是 PCB 视图，则模拟点击 PCB 按钮
+                if (AppState.currentDrawingType !== 'pcb') {
+                    const btnPcb = document.getElementById('btn-pcb');
+                    if (btnPcb) btnPcb.click();
+                }
+
+                // 如果当前 3D 处于关闭状态，则模拟点击 3D 分屏按钮
+                if (!AppState.isSplitViewActive) {
+                    const splitBtn = document.getElementById('tool-split-view');
+                    if (splitBtn && !splitBtn.classList.contains('hidden')) {
+                        splitBtn.click();
+                    }
+                }
+            }, 50);
+            // ============================================
         }
     });
 
