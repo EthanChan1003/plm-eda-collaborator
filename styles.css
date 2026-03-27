@@ -101,18 +101,15 @@ body {
 
 /* ========== 跨视图预警系统：SVG 呼吸光环 ========== */
 @keyframes warning-glow {
-    0% { filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.8)) drop-shadow(0 0 8px rgba(255, 0, 0, 0.6)); }
-    50% { filter: drop-shadow(0 0 12px rgba(255, 0, 0, 1)) drop-shadow(0 0 20px rgba(255, 0, 0, 0.8)); }
-    100% { filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.8)) drop-shadow(0 0 8px rgba(255, 0, 0, 0.6)); }
+    0% { filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.7)); }
+    50% { filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.9)); }
+    100% { filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.7)); }
 }
 .cross-view-warning {
-    animation: warning-glow 1.2s infinite alternate;
+    animation: warning-glow 2s infinite alternate;
     /* 提升层级确保红光不被遮挡 */
     position: relative;
     z-index: 20;
-    /* 增强对比度 */
-    stroke: #ff0000 !important;
-    stroke-width: 2px !important;
 }
 /* 批注角标 */
 .annotation-badge {

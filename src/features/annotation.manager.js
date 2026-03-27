@@ -452,11 +452,11 @@ window.toggleAnnotationStatus = function(id, version) {
     
     bus.emit('ANNOTATION_STATUS_CHANGED', annotation);
     
+    // 更新跨视图预警（解决问题后红灯应熄灭/开启）
+    updateCrossViewWarnings();
+    
     // 触发反应式更新
     bus.emit('ANNOTATIONS_UPDATED', annotations);
-    
-    // 更新跨视图预警（解决问题后红灯应熄灭）
-    updateCrossViewWarnings();
 };
 
 /**
