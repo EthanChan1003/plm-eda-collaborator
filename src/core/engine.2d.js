@@ -165,6 +165,24 @@ export function init2DEngine() {
         return;
     }
 
+    // === 新增：动态注入 2D 操作提示 (HUD) ===
+    const hintOverlay = document.createElement('div');
+    // 使用与 3D 完全相同的 Tailwind 磨砂玻璃样式，固定在右下角
+    hintOverlay.className = 'absolute bottom-4 right-4 z-50 pointer-events-none bg-gray-900/60 backdrop-blur-sm text-gray-200 text-[11px] px-3 py-2.5 rounded shadow-lg flex flex-col space-y-2 border border-white/10';
+    hintOverlay.innerHTML = `
+        <div class="flex items-center tracking-wider">
+            <i class="fas fa-mouse-pointer w-4 text-center mr-2 text-blue-400"></i>左键点击：选中器件与批注
+        </div>
+        <div class="flex items-center tracking-wider">
+            <i class="fas fa-hand-paper w-4 text-center mr-2 text-green-400"></i>平移模式：左键拖拽移动图纸
+        </div>
+        <div class="flex items-center tracking-wider">
+            <i class="fas fa-search w-4 text-center mr-2 text-yellow-400"></i>滚轮滚动：缩放当前图纸视角
+        </div>
+    `;
+    canvasWrapper.appendChild(hintOverlay);
+    // ==========================================
+
     let isPanning = false;
     let panStartX, panStartY;
 

@@ -6,7 +6,26 @@ let isThreeInitialized = false;
 
 export function initThreeEngine(container) {
     if (isThreeInitialized) return;
-    
+
+    // === 新增：动态注入 3D 操作提示 (HUD) ===
+    container.style.position = 'relative'; // 确保容器具有相对定位
+    const hintOverlay = document.createElement('div');
+    // 使用 Tailwind 打造现代半透明磨砂玻璃质感
+    hintOverlay.className = 'absolute bottom-4 right-4 z-50 pointer-events-none bg-gray-900/60 backdrop-blur-sm text-gray-200 text-[11px] px-3 py-2.5 rounded shadow-lg flex flex-col space-y-2 border border-white/10';
+    hintOverlay.innerHTML = `
+        <div class="flex items-center tracking-wider">
+            <i class="fas fa-hand-pointer w-4 text-center mr-2 text-blue-400"></i>左键拖拽：旋转视角
+        </div>
+        <div class="flex items-center tracking-wider">
+            <i class="fas fa-arrows-alt w-4 text-center mr-2 text-green-400"></i>右键拖拽：平移图纸
+        </div>
+        <div class="flex items-center tracking-wider">
+            <i class="fas fa-search w-4 text-center mr-2 text-yellow-400"></i>滚轮滚动：缩放模型
+        </div>
+    `;
+    container.appendChild(hintOverlay);
+    // ==========================================
+
     // 1. 初始化场景
     scene = new THREE.Scene();
     scene.background = new THREE.Color('#1e293b');
