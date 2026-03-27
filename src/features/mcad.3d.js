@@ -1,8 +1,14 @@
 import { AppState } from '../core/state.js';
 import { bus } from '../core/event.bus.js';
 
+// === 修改：提升作用域至模块顶部 ===
 let scene, camera, renderer, controls;
 let isThreeInitialized = false;
+let pcbLayers3D = {
+    top: new THREE.Group(),
+    bottom: new THREE.Group()
+};
+// ===============================
 
 export function initThreeEngine(container) {
     if (isThreeInitialized) return;
@@ -32,14 +38,10 @@ export function initThreeEngine(container) {
     scene = new THREE.Scene();
     scene.background = new THREE.Color('#1e293b');
 
-    // === 3D PCB 图层分组容器 ===
-    const pcbLayers3D = {
-        top: new THREE.Group(),
-        bottom: new THREE.Group()
-    };
+    // === 核心修复：确保容器被加入场景 ===
     scene.add(pcbLayers3D.top);
     scene.add(pcbLayers3D.bottom);
-    // ==========================
+    // ===================================
 
     // 2. 初始化相机
     const width = container.clientWidth || 500;
