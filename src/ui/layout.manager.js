@@ -37,6 +37,10 @@ export function initLayoutManager() {
             group.style.opacity = isVisible ? '1' : '0';
             group.style.pointerEvents = isVisible ? 'auto' : 'none';
         }
+
+        // === 新增：将图层显隐信号广播给 3D 引擎 ===
+        bus.emit('PCB_LAYER_TOGGLED', { layerName, isVisible });
+        // ===========================================
     };
 
     // ============ 视图切换 ============

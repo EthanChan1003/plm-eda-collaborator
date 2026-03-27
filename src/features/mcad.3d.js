@@ -32,6 +32,15 @@ export function initThreeEngine(container) {
     scene = new THREE.Scene();
     scene.background = new THREE.Color('#1e293b');
 
+    // === 3D PCB 图层分组容器 ===
+    const pcbLayers3D = {
+        top: new THREE.Group(),
+        bottom: new THREE.Group()
+    };
+    scene.add(pcbLayers3D.top);
+    scene.add(pcbLayers3D.bottom);
+    // ==========================
+
     // 2. 初始化相机
     const width = container.clientWidth || 500;
     const height = container.clientHeight || 800;
@@ -174,14 +183,22 @@ export function initThreeEngine(container) {
     });
     // ===============================================
 
+    // === 监听图层显隐事件 ===
+    bus.on('PCB_LAYER_TOGGLED', ({ layerName, isVisible }) => {
+        if (pcbLayers3D[layerName]) {
+            pcbLayers3D[layerName].visible = isVisible;
+        }
+    });
+    // =======================
+
     // 6. 绘制 PCB 物理基板
     createPcbBoard();
-    
+
     // 7. 绘制 3D 元器件
     createComponents();
-    
+
     // 8. 生成 3D 走线网络
-    createTraces();
+    createTraces(scene, pcbLayers3D);
 
     // 9. 渲染循环
     function animate() {
@@ -337,10 +354,10 @@ function createComponents() {
     });
 }
 
-function createTraces() {
-    function parsePathToLine(dStr, zPos, colorHex) {
+function createTraces(targetScene, layers3D) {
+    function parsePathToLine(dStr, zPos, colorHex, targetGroup) {
         const points = [];
-        const commands = dStr.split(/(?=[ML])/); 
+        const commands = dStr.split(/(?=[ML])/);
         commands.forEach(cmd => {
             const parts = cmd.trim().split(' ');
             if (parts.length >= 3) {
@@ -349,25 +366,28 @@ function createTraces() {
                 points.push(new THREE.Vector3(x, y, zPos));
             }
         });
-        
+
         if (points.length > 1) {
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
             const material = new THREE.LineBasicMaterial({ color: colorHex });
             const line = new THREE.Line(geometry, material);
-            scene.add(line);
+            // === 核心修改：不再直接 add 到 scene，而是加到对应的层级 Group 中 ===
+            targetGroup.add(line);
         }
     }
 
+    // 将顶层走线加入 top Group
     const topPaths = document.querySelectorAll('#pcb-layer-top path');
     topPaths.forEach(p => {
         const d = p.getAttribute('d');
-        if(d) parsePathToLine(d, 8.1, 0xef4444);
+        if(d) parsePathToLine(d, 8.1, 0xef4444, layers3D.top);
     });
 
+    // 将底层走线加入 bottom Group
     const bottomPaths = document.querySelectorAll('#pcb-layer-bottom path');
     bottomPaths.forEach(p => {
         const d = p.getAttribute('d');
-        if(d) parsePathToLine(d, -8.1, 0x3b82f6);
+        if(d) parsePathToLine(d, -8.1, 0x3b82f6, layers3D.bottom);
     });
 }
 
