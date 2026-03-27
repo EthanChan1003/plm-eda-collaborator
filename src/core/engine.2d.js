@@ -74,7 +74,7 @@ bus.on('ZOOM_IN', () => {
     zoom(1.2, undefined, undefined, wrapperEl, canvasState, (newState) => {
         updateCanvasState(newState);
         updateCanvasTransform(transformEl, canvasState);
-        bus.emit('CANVAS_STATE_CHANGED', canvasState);
+        bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '2D' });
     });
 });
 
@@ -86,7 +86,7 @@ bus.on('ZOOM_OUT', () => {
     zoom(0.8, undefined, undefined, wrapperEl, canvasState, (newState) => {
         updateCanvasState(newState);
         updateCanvasTransform(transformEl, canvasState);
-        bus.emit('CANVAS_STATE_CHANGED', canvasState);
+        bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '2D' });
     });
 });
 
@@ -96,7 +96,7 @@ bus.on('ZOOM_RESET', () => {
 
     updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
     updateCanvasTransform(transformEl, canvasState);
-    bus.emit('CANVAS_STATE_CHANGED', canvasState);
+    bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '2D' });
 });
 
 // 监听：精确设定缩放比例
@@ -116,8 +116,21 @@ bus.on('SET_ZOOM_SCALE', (targetScale) => {
     zoom(factor, centerX, centerY, wrapperEl, canvasState, (newState) => {
         updateCanvasState(newState);
         updateCanvasTransform(transformEl, canvasState);
-        bus.emit('CANVAS_STATE_CHANGED', canvasState);
+        bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '2D' });
     });
+});
+
+// 监听：接收 3D 视口传来的缩放信号
+bus.on('SYNC_3D_TO_2D', (scale3d) => {
+    const transformEl = document.getElementById('canvas-transform');
+    if (!transformEl) return;
+
+    // 仅更新缩放比例，保留 2D 自身的平移状态
+    updateCanvasState({ scale: scale3d });
+    updateCanvasTransform(transformEl, canvasState);
+
+    // 通知 UI 更新左下角的比例数字，并标记来源为 '3D'，防止 3D 引擎重复响应死循环
+    bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '3D' });
 });
 
 // 监听画布状态变化（平移后更新）
@@ -152,7 +165,7 @@ export function init2DEngine() {
         zoom(factor, e.clientX, e.clientY, canvasWrapper, canvasState, (newState) => {
             updateCanvasState(newState);
             updateCanvasTransform(transformEl, canvasState);
-            bus.emit('CANVAS_STATE_CHANGED', canvasState);
+            bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '2D' });
         });
     }, { passive: false });
 
@@ -184,7 +197,7 @@ export function init2DEngine() {
             isPanning = false;
             canvasWrapper.classList.remove('cursor-grabbing');
             canvasWrapper.classList.add('cursor-grab');
-            bus.emit('CANVAS_STATE_CHANGED');
+            bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '2D' });
         }
     };
     canvasWrapper.addEventListener('mouseup', stopPan);
