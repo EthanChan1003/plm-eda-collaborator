@@ -92,11 +92,44 @@ bus.on('ZOOM_OUT', () => {
 
 bus.on('ZOOM_RESET', () => {
     const transformEl = document.getElementById('canvas-transform');
-    if (!transformEl) return;
+    const viewContainer = document.getElementById('view-2d-container');
+    if (!transformEl || !viewContainer) return;
 
-    updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
+    // 获取当前 2D 视口的真实宽高
+    const rect = viewContainer.getBoundingClientRect();
+
+    // 我们设定的 2D 基准画布尺寸
+    const CANVAS_WIDTH = 1000;
+    const CANVAS_HEIGHT = 800;
+
+    // 计算 X 轴和 Y 轴的缩放比例（预留 15% 的边缘留白作为 Safe Area）
+    const scaleX = (rect.width * 0.85) / CANVAS_WIDTH;
+    const scaleY = (rect.height * 0.85) / CANVAS_HEIGHT;
+
+    // 取最小的缩放比例，保证图纸长宽比例不变且能完全展示
+    let fitScale = Math.min(scaleX, scaleY);
+
+    // 限制最小缩放值，防止在极端小窗口下不可见
+    fitScale = Math.max(0.2, fitScale);
+
+    // 平滑过渡动画
+    transformEl.style.transition = 'transform 0.3s ease-out';
+
+    updateCanvasState({
+        scale: fitScale,
+        translateX: 0,
+        translateY: 0
+    });
+
     updateCanvasTransform(transformEl, canvasState);
+
+    // 通知其他模块（如左下角的比例文本、3D 引擎的同步等）
     bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '2D' });
+
+    // 动画结束后移除 transition，防止影响后续的拖拽和滚轮体验
+    setTimeout(() => {
+        transformEl.style.transition = '';
+    }, 300);
 });
 
 // 监听：精确设定缩放比例
