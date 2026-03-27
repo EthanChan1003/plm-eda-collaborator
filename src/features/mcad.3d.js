@@ -35,8 +35,10 @@ export function initThreeEngine(container) {
     // 2. 初始化相机
     const width = container.clientWidth || 500;
     const height = container.clientHeight || 800;
-    camera = new THREE.PerspectiveCamera(45, width / height, 1, 3000);
-    camera.position.set(0, -900, 1100);
+    // 将远裁剪面扩大到 10000
+    camera = new THREE.PerspectiveCamera(45, width / height, 1, 10000);
+    // 优化初始坐标，使其接近 1:1 的视觉大小
+    camera.position.set(0, -610, 750);
 
     // 3. 初始化渲染器
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -60,52 +62,51 @@ export function initThreeEngine(container) {
     controls.dampingFactor = 0.05;
     controls.target.set(0, 0, 0);
 
-    // === 2D 与 3D 视口双向同步逻辑 (升级平移支持) ===
-    const INITIAL_DISTANCE = camera.position.distanceTo(controls.target);
+    // === 2D 与 3D 视口双向同步逻辑 (精准像素映射) ===
     let isUpdatingFrom2D = false;
 
-    // 1. 3D 驱动 2D：同时广播缩放比例与相机焦点位置
+    // 1. 3D 驱动 2D：通过 3D 相机距离反推 2D 的精确 Scale
     controls.addEventListener('change', () => {
         if (isUpdatingFrom2D) return;
         const currentDist = camera.position.distanceTo(controls.target);
-        const scale = INITIAL_DISTANCE / currentDist;
+
+        // 核心修正：利用视口高度和 FOV 反推精准的 2D Scale
+        const containerHeight = renderer.domElement.clientHeight || 800;
+        const fovRadian = (camera.fov * Math.PI) / 180;
+        const exactScale = containerHeight / (2 * currentDist * Math.tan(fovRadian / 2));
 
         bus.emit('SYNC_3D_TO_2D', {
-            scale: scale,
+            scale: exactScale,
             targetX: controls.target.x,
             targetY: controls.target.y
         });
     });
 
-    // 2. 2D 驱动 3D：接收并解析 2D 画布的缩放与平移状态
+    // 2. 2D 驱动 3D：通过 2D 的 Scale 反推 3D 相机的绝对物理距离
     bus.on('CANVAS_STATE_CHANGED', (payload) => {
         if (!AppState.isSplitViewActive || !payload || payload.source === '3D') return;
         isUpdatingFrom2D = true;
 
-        // A. 同步缩放
-        const targetDist = INITIAL_DISTANCE / payload.scale;
+        // A. 同步缩放：数学绝对计算，确保 1 unit (3D) = 1 px (2D)
+        const containerHeight = renderer.domElement.clientHeight || 800;
+        const fovRadian = (camera.fov * Math.PI) / 180;
+        const exactDist = containerHeight / (2 * payload.scale * Math.tan(fovRadian / 2));
+
         const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
         if (dir.lengthSq() === 0) dir.set(0, -1, 1).normalize();
 
-        // B. 同步平移 (坐标系映射算法)
-        // 2D 右移(translateX为正) -> 3D 相机需向左(target.x为负)
-        // 2D 下移(translateY为正) -> 3D Y轴向上，相机需向上(target.y为正)
+        // B. 同步平移
         const newTargetX = -payload.translateX / payload.scale;
         const newTargetY = payload.translateY / payload.scale;
-
         const deltaX = newTargetX - controls.target.x;
         const deltaY = newTargetY - controls.target.y;
 
-        // 更新焦点
         controls.target.set(newTargetX, newTargetY, 0);
-
-        // 相机跟随焦点平移，保持原有视角
         camera.position.x += deltaX;
         camera.position.y += deltaY;
 
-        // 沿视线方向推拉相机应用缩放
-        camera.position.copy(controls.target).add(dir.multiplyScalar(targetDist));
-
+        // 沿视线方向绝对定位相机
+        camera.position.copy(controls.target).add(dir.multiplyScalar(exactDist));
         controls.update();
         isUpdatingFrom2D = false;
     });
