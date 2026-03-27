@@ -63,7 +63,7 @@
 克隆本仓库到本地：
 
 ```bash
-git clone [https://github.com/your-username/plm-eda-collaborator.git](https://github.com/your-username/plm-eda-collaborator.git)
+git clone https://github.com/ethanchan1003/plm-eda-collaborator.git
 ```
 推荐使用 Live Server（VS Code 插件）或任何本地静态服务器打开项目根目录。
 
