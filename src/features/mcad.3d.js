@@ -176,14 +176,22 @@ export function initThreeEngine(container) {
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(scene.children, true);
 
-        if (intersects.length > 0) {
-            const target = intersects.find(intersect => intersect.object.userData && intersect.object.userData.ref);
-            if (target) {
-                const ref = target.object.userData.ref;
-                if (typeof window.selectComponent === 'function') {
-                    window.selectComponent(ref);
-                }
+        // 查找是否点击到了带有位号(ref)的元器件
+        const target = intersects.find(intersect => intersect.object.userData && intersect.object.userData.ref);
+
+        if (target) {
+            // 点中了元器件：触发选中高亮与属性展示
+            const ref = target.object.userData.ref;
+            if (typeof window.selectComponent === 'function') {
+                window.selectComponent(ref);
             }
+        } else {
+            // === 核心修复：未点中元器件（点中板子空白处或黑色背景），触发取消选中 ===
+            if (typeof window.clearSelection === 'function') {
+                window.clearSelection();
+            }
+            bus.emit('CLEAR_SELECTION');
+            // ====================================================================
         }
     });
 
