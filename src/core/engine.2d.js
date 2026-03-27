@@ -165,7 +165,13 @@ export function init2DEngine() {
         return;
     }
 
-    // === 新增：动态注入 2D 操作提示 (HUD) ===
+    // === 【核心修复】：锁死容器定位 ===
+    // 强制赋予相对定位，防止 absolute 子元素逃逸到全屏边界
+    canvasWrapper.style.position = 'relative';
+    canvasWrapper.style.overflow = 'hidden';
+    // ================================
+
+    // === 动态注入 2D 操作提示 (HUD) ===
     const hintOverlay = document.createElement('div');
     // 使用与 3D 完全相同的 Tailwind 磨砂玻璃样式，固定在右下角
     hintOverlay.className = 'absolute bottom-4 right-4 z-50 pointer-events-none bg-gray-900/60 backdrop-blur-sm text-gray-200 text-[11px] px-3 py-2.5 rounded shadow-lg flex flex-col space-y-2 border border-white/10';

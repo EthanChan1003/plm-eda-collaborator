@@ -7,8 +7,10 @@ let isThreeInitialized = false;
 export function initThreeEngine(container) {
     if (isThreeInitialized) return;
 
-    // === 新增：动态注入 3D 操作提示 (HUD) ===
+    // === 动态注入 3D 操作提示 (HUD) ===
     container.style.position = 'relative'; // 确保容器具有相对定位
+    container.style.overflow = 'hidden';   // === 新增：防止内容溢出 ===
+
     const hintOverlay = document.createElement('div');
     // 使用 Tailwind 打造现代半透明磨砂玻璃质感
     hintOverlay.className = 'absolute bottom-4 right-4 z-50 pointer-events-none bg-gray-900/60 backdrop-blur-sm text-gray-200 text-[11px] px-3 py-2.5 rounded shadow-lg flex flex-col space-y-2 border border-white/10';
