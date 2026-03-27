@@ -140,20 +140,21 @@ export function initVersionManager() {
         mockComponentData = { ...versionedComponentData[AppState.currentVersion] };
         window.mockComponentData = mockComponentData;
 
-        // 同步画布图元显示/隐藏
+        // 1. 同步画布图元显示/隐藏
         syncCanvasComponents();
 
-        // 通知其他模块
+        // === 核心修复：必须先更新对比版本及其 Diff 数据计算，再通知外部 UI 渲染 ===
+        updateCompareVersionOptions();
+        // =====================================================================
+
+        // 2. 通知其他模块更新 UI (此时拿到的才是最新鲜的 mockDiffData)
         bus.emit('VERSION_CHANGED', AppState.currentVersion);
         bus.emit('TAB_CHANGED', currentTab);
 
-        // Diff 页签需要额外处理高亮
+        // 3. Diff 页签需要额外处理高亮
         if (currentTab === 'diff') {
             applyDiffHighlight();
         }
-
-        // 更新对比版本下拉框选项
-        updateCompareVersionOptions();
     }
 
     // 全局版本选择器事件
