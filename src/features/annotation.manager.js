@@ -16,7 +16,7 @@ let annotationBubble = null;
 let isDrawing = false;
 let currentAnnotationBox = null;
 let drawStartX, drawStartY;
-let currentDrawingType = 'schematic';
+let currentDrawingType = AppState.currentDrawingType || 'schematic';
 
 /**
  * 初始化批注管理器
@@ -61,6 +61,9 @@ export function initAnnotationManager() {
 
     // 渲染预置批注
     renderPresetAnnotations();
+    
+    // 初始更新跨视图预警
+    updateCrossViewWarnings();
 
     console.log('批注管理器：初始化完成，已加载预置数据。');
 }

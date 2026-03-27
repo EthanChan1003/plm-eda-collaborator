@@ -53,6 +53,9 @@ export function initSidebar() {
         }
     });
     
+    // 初始渲染结构树
+    renderTreeContent();
+    
     console.log('Sidebar 模块初始化完成');
 }
 

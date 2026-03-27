@@ -95,3 +95,28 @@ bus.on('ZOOM_RESET', () => {
     updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
     updateCanvasTransform(transformEl, canvasState);
 });
+
+// 监听画布状态变化（平移后更新）
+bus.on('CANVAS_STATE_CHANGED', () => {
+    const transformEl = document.getElementById('canvas-transform');
+    if (!transformEl) return;
+    updateCanvasTransform(transformEl, canvasState);
+});
+
+// 初始化滚轮缩放
+document.addEventListener('DOMContentLoaded', () => {
+    const canvasWrapper = document.getElementById('canvas-wrapper');
+    if (canvasWrapper) {
+        canvasWrapper.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const factor = e.deltaY > 0 ? 0.9 : 1.1;
+            const transformEl = document.getElementById('canvas-transform');
+            if (!transformEl) return;
+            
+            zoom(factor, e.clientX, e.clientY, canvasWrapper, canvasState, (newState) => {
+                updateCanvasState(newState);
+                updateCanvasTransform(transformEl, canvasState);
+            });
+        }, { passive: false });
+    }
+});
