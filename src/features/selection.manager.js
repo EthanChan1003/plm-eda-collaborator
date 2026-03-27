@@ -34,6 +34,13 @@ export function initSelectionManager() {
         bus.emit('COMPONENT_SELECTED', refDes);
     };
 
+    // === 新增：暴露全局清除选择函数 ===
+    window.clearSelection = function() {
+        hidePropertyCard();
+        clearAllSelection();
+    };
+    // ==================================
+
     function updatePropertyCard(refDes) {
         const data = mockComponentData[refDes];
         if (!data) return;
@@ -183,6 +190,14 @@ export function initSelectionManager() {
         // 视图切换后重新绑定器件点击事件
         setTimeout(() => bindSvgEvents(), 0);
     });
+
+    // === 新增：接收 3D 或其他模块发来的清除信号 ===
+    bus.on('CLEAR_SELECTION', () => {
+        if (typeof window.clearSelection === 'function') {
+            window.clearSelection();
+        }
+    });
+    // ==============================================
 
     // 初始绑定
     setTimeout(() => bindSvgEvents(), 100);
