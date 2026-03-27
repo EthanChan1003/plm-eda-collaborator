@@ -502,13 +502,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (toolSplitView) toolSplitView.classList.remove('hidden');
     }
 
-    // 绑定 3D 分屏按钮调用跨模块接口
-    const view2dContainer = document.getElementById('view-2d-container');
-    const view3dContainer = document.getElementById('view-3d-container');
+    // 绑定 3D 分屏按钮调用跨模块接口 (直接使用顶部已声明的变量)
     if (toolSplitView) {
         toolSplitView.addEventListener('click', () => {
-            if (Mcad3D && typeof Mcad3D.toggleThreeSplitView === 'function') {
+            if (typeof Mcad3D !== 'undefined' && typeof Mcad3D.toggleThreeSplitView === 'function') {
                 Mcad3D.toggleThreeSplitView(toolSplitView, view2dContainer, view3dContainer);
+            } else {
+                console.warn('3D 模块未正确加载');
             }
         });
     }
