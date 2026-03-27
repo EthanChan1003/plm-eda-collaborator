@@ -100,13 +100,13 @@ async function generatePDFReport(annotations) {
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            bus.emit('SHOW_TOAST', { message: '⏳ 正在生成 PDF 评审报告，请稍候...', type: 'info' });
+            bus.emit('SHOW_TOAST', { message: '正在生成 PDF 评审报告，请稍候...', type: 'info' });
 
             html2pdf().set(opt).from(clonedElement).save().then(() => {
                 document.body.removeChild(offScreenContainer);
                 btnExportPdf.innerHTML = originalBtnText;
                 btnExportPdf.disabled = false;
-                bus.emit('SHOW_TOAST', { message: '✔ PDF 评审报告下载成功', type: 'success' });
+                bus.emit('SHOW_TOAST', { message: 'PDF 评审报告导出成功', type: 'success' });
             }).catch(err => {
                 console.error('PDF 导出失败:', err);
                 if (document.body.contains(offScreenContainer)) {
@@ -114,7 +114,7 @@ async function generatePDFReport(annotations) {
                 }
                 btnExportPdf.innerHTML = originalBtnText;
                 btnExportPdf.disabled = false;
-                bus.emit('SHOW_TOAST', { message: '❌ PDF 导出失败，请检查控制台', type: 'error' });
+                bus.emit('SHOW_TOAST', { message: 'PDF 导出失败，请检查控制台', type: 'error' });
             });
         }, 100);
 

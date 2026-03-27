@@ -28,8 +28,8 @@ export function initToastManager() {
                 icon: '<i class="fas fa-exclamation-triangle text-yellow-500 mr-2 text-lg"></i>'
             },
             'info': {
-                bg: 'bg-gray-800 text-white shadow-lg',
-                icon: '<i class="fas fa-info-circle text-blue-400 mr-2 text-lg"></i>'
+                bg: 'bg-white text-gray-800 border border-gray-100 shadow-xl',
+                icon: '<i class="fas fa-info-circle text-blue-500 mr-2 text-lg"></i>'
             }
         };
 
