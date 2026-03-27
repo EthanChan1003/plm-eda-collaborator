@@ -11,6 +11,7 @@ import { initSearchManager } from './features/search.manager.js';
 import { initLayoutManager } from './ui/layout.manager.js';
 import { initVersionManager } from './features/version.manager.js';
 import { initToastManager } from './ui/toast.manager.js';
+import { initIdxManager } from './features/idx.manager.js';
 
 // 临时挂载到 window 保证旧代码兼容性，重构完成后将移除
 window.bus = bus;
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initToolbar();
     initLayoutManager();
     initVersionManager();
+    initIdxManager();
     initSelectionManager();
     initAnnotationManager();
     initSidebar();

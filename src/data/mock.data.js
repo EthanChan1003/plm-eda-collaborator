@@ -123,3 +123,40 @@ export const presetAnnotations = [
         author: 'AI 智能评审', time: '2026-03-26 15:00'
     }
 ];
+
+// ============ V6.0 IDX (EDMD) 机电协同协商数据 ============
+export const idxTransactions = [
+    {
+        id: 'IDX-001',
+        type: 'baseline',
+        sender: 'ECAD',
+        time: '2026-03-27 09:00',
+        title: '初始基线推送 (Baseline)',
+        status: 'applied',
+        details: []
+    },
+    {
+        id: 'IDX-002',
+        type: 'propose',
+        sender: 'MCAD',
+        time: '2026-03-27 11:30',
+        title: '结构干涉调整建议',
+        status: 'pending', // pending, accepted, rejected
+        details: [
+            {
+                action: 'MOVE',
+                targetRef: 'J1',
+                desc: '外壳干涉，建议下移',
+                oldPos: { x: 100, y: 600 },
+                newPos: { x: 100, y: 620 }
+            },
+            {
+                action: 'MOVE',
+                targetRef: 'U2',
+                desc: '避让螺丝柱',
+                oldPos: { x: 100, y: 140 },
+                newPos: { x: 120, y: 140 }
+            }
+        ]
+    }
+];
