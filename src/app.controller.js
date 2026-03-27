@@ -396,103 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (toolSplitView) toolSplitView.classList.remove('hidden');
     }
 
-    // ============ 核心公共函数：选中器件 ============
-    window.selectComponent = function(refDes) {
-        document.querySelectorAll('.eda-component').forEach(el => {
-            el.classList.remove('selected-component');
-        });
-
-        const targetComponents = document.querySelectorAll(`.eda-component[data-ref="${refDes}"]`);
-        targetComponents.forEach(el => {
-            el.classList.add('selected-component');
-        });
-
-        updatePropertyCard(refDes);
-    };
-
-    function updatePropertyCard(refDes) {
-        const data = mockComponentData[refDes];
-        if (!data) return;
-
-        document.getElementById('prop-refdes').innerText = data.RefDes;
-        document.getElementById('prop-itemnum').innerText = data.ItemNumber;
-        
-        const diff = mockDiffData[refDes];
-        const partNumEl = document.getElementById('prop-partnum');
-        
-        let partNumberHtml = `<span class="text-gray-900">${data.PartNumber}</span>`;
-        let locationHtml = '';
-
-        if (currentTab === 'diff' && diff) {
-            if (diff.type === 'modified' && (diff.attr === 'PartNumber' || diff.attr === '阻值')) {
-                partNumberHtml = `<del class="text-gray-400">${diff.oldVal}</del> <span class="text-yellow-600 font-bold ml-1">${diff.newVal}</span>`;
-            } else if (diff.type === 'moved') {
-                locationHtml = `
-                    <div class="col-span-2 mt-2 pt-2 border-t border-gray-100">
-                        <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-0.5">坐标变更</div>
-                        <div class="text-sm mt-1">
-                            <del class="text-gray-400">${diff.oldVal}</del> 
-                            <span class="text-yellow-600 font-bold ml-1">${diff.newVal}</span>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        partNumEl.innerHTML = partNumberHtml;
-        
-        document.getElementById('prop-footprint').innerText = data.Footprint;
-        document.getElementById('prop-desc').innerText = data.Description;
-
-        const statusEl = document.getElementById('prop-status');
-        statusEl.innerText = data.Status;
-        statusEl.className = "px-2 py-0.5 rounded text-[11px] font-bold";
-        
-        if (data.Status === '归档') {
-            statusEl.classList.add('bg-green-100', 'text-green-700');
-        } else if (data.Status === '提交') {
-            statusEl.classList.add('bg-orange-100', 'text-orange-700');
-        } else {
-            statusEl.classList.add('bg-gray-100', 'text-gray-600');
-        }
-
-        const gridContainer = document.querySelector('#comp-property-popover .grid');
-        const oldLocationRow = gridContainer.querySelector('.location-diff-row');
-        if (oldLocationRow) {
-            oldLocationRow.remove();
-        }
-        if (locationHtml) {
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = locationHtml;
-            const newRow = tempDiv.firstElementChild;
-            newRow.classList.add('location-diff-row');
-            gridContainer.appendChild(newRow);
-        }
-
-        popover.classList.remove('hidden');
-        setTimeout(() => {
-            popover.classList.add('popover-active');
-        }, 10);
-    }
-
-    function hidePropertyCard() {
-        popover.classList.remove('popover-active');
-        setTimeout(() => {
-            popover.classList.add('hidden');
-        }, 300);
-    }
-
-    function clearAllSelection() {
-        document.querySelectorAll('.eda-component').forEach(el => {
-            el.classList.remove('selected-component');
-        });
-        document.querySelectorAll('.annotation-box').forEach(box => {
-            box.classList.remove('selected');
-        });
-        document.querySelectorAll('.note-item').forEach(item => {
-            item.classList.remove('active');
-        });
-    }
+    // ============ 选择器与属性卡片功能已迁移至 src/features/selection.manager.js ============
 
     // ============ 场景化搜索联想功能 ============
     function renderSearchDropdown(query) {
@@ -642,37 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ============ 画布交互 ============
-    function bindSvgEvents() {
-        const components = document.querySelectorAll('.eda-component');
-        components.forEach(comp => {
-            comp.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const ref = comp.getAttribute('data-ref');
-                selectComponent(ref);
-            });
-        });
-    }
-
-    if (canvasContainer) {
-        canvasContainer.addEventListener('click', () => {
-            hidePropertyCard();
-            clearAllSelection();
-        });
-    }
-
-    if (popover) {
-        popover.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    }
-
-    if (popoverClose) {
-        popoverClose.addEventListener('click', () => {
-            hidePropertyCard();
-            clearAllSelection();
-        });
-    }
+    // ============ 画布交互已迁移至 src/features/selection.manager.js ============
 
     function generateTreeItem(ref, label, icon, isPrimary = false) {
         const data = mockComponentData[ref];
@@ -794,20 +668,5 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.diff-position-indicator').forEach(el => el.classList.add('hidden'));
     }
 
-    // 6. 恢复全局 Hover 联动函数（挂载到 window 供 HTML 内联调用）
-    window.highlightComponent = function(ref) {
-        const comps = document.querySelectorAll(`.eda-component[data-ref="${ref}"]`);
-        comps.forEach(c => {
-            c.style.filter = "drop-shadow(0 0 4px rgba(37, 99, 235, 0.6))";
-        });
-    };
-
-    window.clearHighlight = function() {
-        const comps = document.querySelectorAll('.eda-component');
-        comps.forEach(c => {
-            if (!c.classList.contains('selected-component')) {
-                c.style.filter = "";
-            }
-        });
-    };
+    // 全局 Hover 联动函数已迁移至 src/features/selection.manager.js
 });
