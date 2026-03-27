@@ -10,6 +10,7 @@ import { initSelectionManager } from './features/selection.manager.js';
 import { initSearchManager } from './features/search.manager.js';
 import { initLayoutManager } from './ui/layout.manager.js';
 import { initVersionManager } from './features/version.manager.js';
+import { initToastManager } from './ui/toast.manager.js';
 
 // 临时挂载到 window 保证旧代码兼容性，重构完成后将移除
 window.bus = bus;
@@ -19,6 +20,7 @@ console.log('EDA 可视化协同 V5.0 模块化引擎启动成功！');
 
 // 在 DOMContentLoaded 后启动各模块
 document.addEventListener('DOMContentLoaded', () => {
+    initToastManager();
     init2DEngine();
     initToolbar();
     initLayoutManager();

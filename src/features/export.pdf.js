@@ -1,4 +1,5 @@
 import { AppState } from '../core/state.js';
+import { bus } from '../core/event.bus.js';
 
 export function initPdfExporter(annotations) {
     const btnExportPdf = document.getElementById('btn-export-pdf');
@@ -99,10 +100,13 @@ async function generatePDFReport(annotations) {
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
+            bus.emit('SHOW_TOAST', { message: '⏳ 正在生成 PDF 评审报告，请稍候...', type: 'info' });
+
             html2pdf().set(opt).from(clonedElement).save().then(() => {
                 document.body.removeChild(offScreenContainer);
                 btnExportPdf.innerHTML = originalBtnText;
                 btnExportPdf.disabled = false;
+                bus.emit('SHOW_TOAST', { message: '✔ PDF 评审报告下载成功', type: 'success' });
             }).catch(err => {
                 console.error('PDF 导出失败:', err);
                 if (document.body.contains(offScreenContainer)) {
@@ -110,7 +114,7 @@ async function generatePDFReport(annotations) {
                 }
                 btnExportPdf.innerHTML = originalBtnText;
                 btnExportPdf.disabled = false;
-                alert('PDF 导出失败，请重试');
+                bus.emit('SHOW_TOAST', { message: '❌ PDF 导出失败，请检查控制台', type: 'error' });
             });
         }, 100);
 
