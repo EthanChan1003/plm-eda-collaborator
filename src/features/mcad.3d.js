@@ -12,6 +12,22 @@ let pcbLayers3D = {
 };
 // ===============================
 
+/**
+ * 核心助手函数：支持穿透 Top/Bottom 两个组查找对应的元器件 Mesh
+ */
+function findMesh(ref) {
+    // 检查容器是否存在
+    if (!pcbLayers3D || !pcbLayers3D.top || !pcbLayers3D.bottom) return null;
+
+    // 先在顶层组里找
+    const topTarget = pcbLayers3D.top.children.find(c => c.userData && c.userData.ref === ref);
+    if (topTarget) return topTarget;
+
+    // 如果顶层没找到，去底层组里找
+    const bottomTarget = pcbLayers3D.bottom.children.find(c => c.userData && c.userData.ref === ref);
+    return bottomTarget || null;
+}
+
 export function initThreeEngine(container) {
     if (isThreeInitialized) return;
 
@@ -160,32 +176,58 @@ export function initThreeEngine(container) {
         }
     }
 
-    // 监听 2D/UI 发出的选中器件事件
+    // === 核心修复：从嵌套组中查找并高亮 ===
     bus.on('COMPONENT_SELECTED', (ref) => {
-        if (!scene || !AppState.isSplitViewActive) return;
+        if (!AppState.isSplitViewActive) return;
+        
+        // 1. 先重置所有高亮
+        ['top', 'bottom'].forEach(l => pcbLayers3D[l].children.forEach(m => {
+            if (m.material && m.material.emissive) m.material.emissive.setHex(0x000000);
+        }));
 
-        // 1. 清除上一个器件的高亮状态
-        clear3DHighlight();
-
-        // 2. 查找目标 3D 实体
-        const target = scene.children.find(child => child.userData && child.userData.ref === ref);
-        if (target) {
-            // 首次高亮前，缓存器件本来的颜色属性
+        // 2. 深度查找目标 (findMesh 是我们之前定义的助手函数)
+        const target = findMesh(ref);
+        if (target && target.material) {
+            // 缓存一下原始颜色（如果还没缓存过）
             if (!target.userData.origEmissive) {
                 target.userData.origEmissive = target.material.emissive.clone();
             }
-
-            // 赋予明亮的蓝色自发光，模拟"被选中"的科技高亮感
-            target.material.emissive = new THREE.Color('#3b82f6');
-            currentlySelected3DRef = ref;
+            target.material.emissive.setHex(0x3b82f6); // 赋予标志性的蓝色光晕
         }
     });
 
-    // 监听取消选中的全局事件
+    // === 核心助手函数：重置所有 3D 实体的高亮状态 ===
+    function resetAll3DHighlights() {
+        if (!pcbLayers3D) return;
+        
+        ['top', 'bottom'].forEach(layerName => {
+            const group = pcbLayers3D[layerName];
+            group.children.forEach(mesh => {
+                if (mesh.material && mesh.material.emissive) {
+                    // 熄灭蓝色光晕
+                    mesh.material.emissive.setHex(0x000000); 
+                }
+            });
+        });
+    }
+
+    // 核心修复：使用更鲁棒的场景遍历重置法
     bus.on('CLEAR_SELECTION', () => {
-        clear3DHighlight();
+        console.log("3D 引擎接收到 CLEAR_SELECTION 信号，开始全量重置材质");
+        
+        if (!scene) return;
+
+        // 使用 traverse 深度遍历场景中所有的 Mesh
+        scene.traverse((object) => {
+            if (object.isMesh && object.userData && object.userData.ref) {
+                // 如果是元器件，重置其自发光颜色
+                if (object.material && object.material.emissive) {
+                    // 彻底恢复黑色（关闭高亮）
+                    object.material.emissive.setHex(0x000000); 
+                }
+            }
+        });
     });
-    // ===============================================
 
     // === 监听图层显隐事件 ===
     bus.on('PCB_LAYER_TOGGLED', ({ layerName, isVisible }) => {
@@ -236,7 +278,7 @@ export function initThreeEngine(container) {
     });
     resizeObserver.observe(container);
 
-    // 11. 3D 交互引擎 (Raycaster)
+    // === 核心修复：支持穿透 Group 的射线检测 ===
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -249,24 +291,24 @@ export function initThreeEngine(container) {
         mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
         raycaster.setFromCamera(mouse, camera);
+        
+        // 注意：第二个参数传 true，表示递归检测子对象（即 Group 里的 Mesh）
         const intersects = raycaster.intersectObjects(scene.children, true);
-
-        // 查找是否点击到了带有位号(ref)的元器件
-        const target = intersects.find(intersect => intersect.object.userData && intersect.object.userData.ref);
+        
+        // 过滤掉没有 ref 的对象（比如基板），只拿元器件
+        const target = intersects.find(i => i.object.userData && i.object.userData.ref);
 
         if (target) {
-            // 点中了元器件：触发选中高亮与属性展示
             const ref = target.object.userData.ref;
+            // 调用全局选中函数，这样 2D 和属性面板也会跟着跳
             if (typeof window.selectComponent === 'function') {
                 window.selectComponent(ref);
             }
         } else {
-            // === 核心修复：未点中元器件（点中板子空白处或黑色背景），触发取消选中 ===
+            // 点到背景或基板，取消选中
             if (typeof window.clearSelection === 'function') {
                 window.clearSelection();
             }
-            bus.emit('CLEAR_SELECTION');
-            // ====================================================================
         }
     });
 

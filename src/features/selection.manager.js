@@ -34,12 +34,19 @@ export function initSelectionManager() {
         bus.emit('COMPONENT_SELECTED', refDes);
     };
 
-    // === 新增：暴露全局清除选择函数 ===
-    window.clearSelection = function() {
+    // === 核心修复：支持防回环的全局清理函数 ===
+    window.clearSelection = function(fromBus = false) {
+        // 1. 执行 2D 侧的物理清理
         hidePropertyCard();
         clearAllSelection();
+
+        // 2. 联动逻辑：如果不是从总线收到的信号，就向外广播
+        // 这样：2D 点击 -> 广播 -> 3D 收到；而 3D 点击 -> 2D 收到 -> 不再广播（切断死循环）
+        if (!fromBus) {
+            console.log("2D 发起全局清理信号");
+            bus.emit('CLEAR_SELECTION');
+        }
     };
-    // ==================================
 
     function updatePropertyCard(refDes) {
         const data = mockComponentData[refDes];
@@ -158,11 +165,17 @@ export function initSelectionManager() {
         });
     }
 
-    // 点击画布空白处清除选择
+    // 2. 核心修复：扩大点击监听范围
+    // 不仅仅监听 container，我们要确保点击 SVG 的空白处也能触发
     if (canvasContainer) {
-        canvasContainer.addEventListener('click', () => {
-            hidePropertyCard();
-            clearAllSelection();
+        canvasContainer.addEventListener('click', (e) => {
+            // 如果点击的是容器本身，或者是底层的 PCB 基板(假设 ID 或类名)
+            // 或者是没有任何 data-ref 的空白区域
+            const isComponent = e.target.closest('.eda-component');
+            if (!isComponent) {
+                console.log("2D 侧感知到空白点击");
+                window.clearSelection();
+            }
         });
     }
 
@@ -191,13 +204,11 @@ export function initSelectionManager() {
         setTimeout(() => bindSvgEvents(), 0);
     });
 
-    // === 新增：接收 3D 或其他模块发来的清除信号 ===
+    // 3. 监听来自 3D 或其他模块的清理信号
     bus.on('CLEAR_SELECTION', () => {
-        if (typeof window.clearSelection === 'function') {
-            window.clearSelection();
-        }
+        // 收到信号，仅执行内部清理，标记为 fromBus=true 防止死循环
+        window.clearSelection(true); 
     });
-    // ==============================================
 
     // 初始绑定
     setTimeout(() => bindSvgEvents(), 100);
