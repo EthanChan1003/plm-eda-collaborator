@@ -39,34 +39,53 @@ export function initThreeEngine(container) {
     controls.dampingFactor = 0.05;
     controls.target.set(0, 0, 0);
 
-    // === 新增：2D 与 3D 视口双向同步逻辑 ===
-    const INITIAL_DISTANCE = camera.position.distanceTo(controls.target); // 记录初始相机距离
-    let isUpdatingFrom2D = false; // 防死循环锁
+    // === 2D 与 3D 视口双向同步逻辑 (升级平移支持) ===
+    const INITIAL_DISTANCE = camera.position.distanceTo(controls.target);
+    let isUpdatingFrom2D = false;
 
-    // 1. 3D 驱动 2D：监听鼠标滚轮/拖拽 3D 场景
+    // 1. 3D 驱动 2D：同时广播缩放比例与相机焦点位置
     controls.addEventListener('change', () => {
-        if (isUpdatingFrom2D) return; // 如果是被 2D 驱动的，则不向外发事件
+        if (isUpdatingFrom2D) return;
         const currentDist = camera.position.distanceTo(controls.target);
-        const scale = INITIAL_DISTANCE / currentDist; // 距离越近，比例越大
-        bus.emit('SYNC_3D_TO_2D', scale);
+        const scale = INITIAL_DISTANCE / currentDist;
+
+        bus.emit('SYNC_3D_TO_2D', {
+            scale: scale,
+            targetX: controls.target.x,
+            targetY: controls.target.y
+        });
     });
 
-    // 2. 2D 驱动 3D：接收 2D 画布的缩放状态
+    // 2. 2D 驱动 3D：接收并解析 2D 画布的缩放与平移状态
     bus.on('CANVAS_STATE_CHANGED', (payload) => {
-        // 只在分屏模式下响应，且忽略自己发出的 3D 事件
         if (!AppState.isSplitViewActive || !payload || payload.source === '3D') return;
-
         isUpdatingFrom2D = true;
+
+        // A. 同步缩放
         const targetDist = INITIAL_DISTANCE / payload.scale;
-
-        // 计算相机到中心点的射线方向
         const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
-        if (dir.lengthSq() === 0) dir.set(0, -1, 1).normalize(); // 兜底方向
+        if (dir.lengthSq() === 0) dir.set(0, -1, 1).normalize();
 
-        // 沿视线方向推拉相机
+        // B. 同步平移 (坐标系映射算法)
+        // 2D 右移(translateX为正) -> 3D 相机需向左(target.x为负)
+        // 2D 下移(translateY为正) -> 3D Y轴向上，相机需向上(target.y为正)
+        const newTargetX = -payload.translateX / payload.scale;
+        const newTargetY = payload.translateY / payload.scale;
+
+        const deltaX = newTargetX - controls.target.x;
+        const deltaY = newTargetY - controls.target.y;
+
+        // 更新焦点
+        controls.target.set(newTargetX, newTargetY, 0);
+
+        // 相机跟随焦点平移，保持原有视角
+        camera.position.x += deltaX;
+        camera.position.y += deltaY;
+
+        // 沿视线方向推拉相机应用缩放
         camera.position.copy(controls.target).add(dir.multiplyScalar(targetDist));
-        controls.update();
 
+        controls.update();
         isUpdatingFrom2D = false;
     });
 

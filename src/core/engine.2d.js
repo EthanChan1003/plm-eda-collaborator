@@ -120,16 +120,27 @@ bus.on('SET_ZOOM_SCALE', (targetScale) => {
     });
 });
 
-// 监听：接收 3D 视口传来的缩放信号
-bus.on('SYNC_3D_TO_2D', (scale3d) => {
+// 监听：接收 3D 视口传来的缩放与平移联合信号
+bus.on('SYNC_3D_TO_2D', (payload) => {
     const transformEl = document.getElementById('canvas-transform');
     if (!transformEl) return;
 
-    // 仅更新缩放比例，保留 2D 自身的平移状态
-    updateCanvasState({ scale: scale3d });
+    // 解析 3D 传来的复合参数
+    const { scale, targetX, targetY } = payload;
+
+    // 反向映射：计算 2D 的平移量
+    const newTranslateX = -targetX * scale;
+    const newTranslateY = targetY * scale;
+
+    updateCanvasState({
+        scale: scale,
+        translateX: newTranslateX,
+        translateY: newTranslateY
+    });
+
     updateCanvasTransform(transformEl, canvasState);
 
-    // 通知 UI 更新左下角的比例数字，并标记来源为 '3D'，防止 3D 引擎重复响应死循环
+    // 触发 UI 更新（左下角比例等），带上 3D 标记防死循环
     bus.emit('CANVAS_STATE_CHANGED', { ...canvasState, source: '3D' });
 });
 
