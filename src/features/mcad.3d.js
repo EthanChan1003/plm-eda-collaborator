@@ -312,45 +312,52 @@ function createPcbBoard() {
 }
 
 function createComponents() {
-    function svgTo3D(x, y, w, h, zThickness) {
+    // 新增 layer 参数，如果是 bottom 层，Z 轴坐标在板子下方 (-8以下)
+    function svgTo3D(x, y, w, h, zThickness, layer = 'top') {
+        const zDir = layer === 'bottom' ? -1 : 1;
         return {
             x: (x + w / 2) - 500,
             y: 400 - (y + h / 2),
-            z: 8 + (zThickness / 2)
+            z: (8 + (zThickness / 2)) * zDir
         };
     }
 
     const componentsData = [
-        { ref: 'U1', x: 350, y: 280, w: 160, h: 160, z: 12, color: '#1f2937' },
-        { ref: 'U2', x: 100, y: 140, w: 50,  h: 40,  z: 15, color: '#1f2937' },
-        { ref: 'J1', x: 100, y: 600, w: 50,  h: 80,  z: 85, color: '#f8fafc' },
-        { ref: 'Y1', x: 620, y: 290, w: 60,  h: 25,  z: 30, color: '#94a3b8' },
-        { ref: 'C1', x: 260, y: 300, w: 25,  h: 12,  z: 8,  color: '#b45309' },
-        { ref: 'C2', x: 260, y: 380, w: 30,  h: 14,  z: 10, color: '#b45309' },
-        { ref: 'C3', x: 720, y: 290, w: 18,  h: 8,   z: 6,  color: '#b45309' },
-        { ref: 'C4', x: 170, y: 600, w: 25,  h: 12,  z: 8,  color: '#b45309' },
-        { ref: 'R1', x: 620, y: 410, w: 30,  h: 12,  z: 6,  color: '#020617' },
-        { ref: 'R2', x: 620, y: 470, w: 30,  h: 12,  z: 6,  color: '#020617' },
-        { ref: 'R3', x: 760, y: 310, w: 30,  h: 12,  z: 6,  color: '#020617' },
-        { ref: 'D1', x: 860, y: 310, w: 30,  h: 14,  z: 12, color: '#ef4444' }
+        { ref: 'U1', x: 350, y: 280, w: 160, h: 160, z: 12, color: '#1f2937', layer: 'top' },
+        { ref: 'U2', x: 100, y: 140, w: 50,  h: 40,  z: 15, color: '#1f2937', layer: 'top' },
+        { ref: 'J1', x: 100, y: 600, w: 50,  h: 80,  z: 85, color: '#f8fafc', layer: 'top' },
+        { ref: 'Y1', x: 620, y: 290, w: 60,  h: 25,  z: 30, color: '#94a3b8', layer: 'top' },
+        { ref: 'C1', x: 260, y: 300, w: 25,  h: 12,  z: 8,  color: '#b45309', layer: 'top' },
+        { ref: 'C2', x: 260, y: 380, w: 30,  h: 14,  z: 10, color: '#b45309', layer: 'bottom' }, // 移至底层
+        { ref: 'C3', x: 720, y: 290, w: 18,  h: 8,   z: 6,  color: '#b45309', layer: 'top' },
+        { ref: 'C4', x: 170, y: 600, w: 25,  h: 12,  z: 8,  color: '#b45309', layer: 'bottom' }, // 移至底层
+        { ref: 'R1', x: 620, y: 410, w: 30,  h: 12,  z: 6,  color: '#020617', layer: 'top' },
+        { ref: 'R2', x: 620, y: 470, w: 30,  h: 12,  z: 6,  color: '#020617', layer: 'top' },
+        { ref: 'R3', x: 760, y: 310, w: 30,  h: 12,  z: 6,  color: '#020617', layer: 'top' },
+        { ref: 'D1', x: 860, y: 310, w: 30,  h: 14,  z: 12, color: '#ef4444', layer: 'top' }
     ];
 
     componentsData.forEach(comp => {
-        const pos = svgTo3D(comp.x, comp.y, comp.w, comp.h, comp.z);
+        const pos = svgTo3D(comp.x, comp.y, comp.w, comp.h, comp.z, comp.layer);
         const geometry = new THREE.BoxGeometry(comp.w, comp.h, comp.z);
-        
+
         const materialParams = { color: comp.color, shininess: 50 };
         if (comp.ref === 'D1') materialParams.emissive = new THREE.Color('#991b1b');
-        
+
         const material = new THREE.MeshPhongMaterial(materialParams);
         const mesh = new THREE.Mesh(geometry, material);
-        
+
         mesh.position.set(pos.x, pos.y, pos.z);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.userData = { ref: comp.ref };
-        
-        scene.add(mesh);
+
+        // === 核心修改：根据器件所在的层级，将其加入到全局对应的图层容器中 ===
+        if (typeof pcbLayers3D !== 'undefined' && pcbLayers3D[comp.layer]) {
+            pcbLayers3D[comp.layer].add(mesh);
+        } else {
+            scene.add(mesh); // Fallback 防御
+        }
     });
 }
 
