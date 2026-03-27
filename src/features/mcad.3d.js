@@ -35,10 +35,10 @@ export function initThreeEngine(container) {
     // 2. 初始化相机
     const width = container.clientWidth || 500;
     const height = container.clientHeight || 800;
-    // 将远裁剪面扩大到 10000
     camera = new THREE.PerspectiveCamera(45, width / height, 1, 10000);
-    // 优化初始坐标，使其接近 1:1 的视觉大小
-    camera.position.set(0, -610, 750);
+    // === 优化初始坐标，更偏向俯视，减少大透视的倾斜感 ===
+    camera.position.set(0, -300, 1000);
+    // ===================================================
 
     // 3. 初始化渲染器
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -107,6 +107,24 @@ export function initThreeEngine(container) {
 
         // 沿视线方向绝对定位相机
         camera.position.copy(controls.target).add(dir.multiplyScalar(exactDist));
+        controls.update();
+        isUpdatingFrom2D = false;
+    });
+
+    // 3. 联动"适应屏幕"：仅重置 3D 视角方向，平移和距离依然由 2D 接管
+    bus.on('ZOOM_RESET', () => {
+        if (!AppState.isSplitViewActive || !camera || !controls) return;
+
+        // 加上防死循环锁，防止相机角度改变触发 controls.change 反向污染 2D
+        isUpdatingFrom2D = true;
+
+        // 设定一个"不太倾斜"的标准工程视角向量
+        const defaultDir = new THREE.Vector3(0, -300, 1000).normalize();
+
+        // 核心：保持当前的焦点和相机距离，仅仅把相机的观察角度"拨"回标准位置
+        const currentDist = camera.position.distanceTo(controls.target);
+        camera.position.copy(controls.target).add(defaultDir.multiplyScalar(currentDist));
+
         controls.update();
         isUpdatingFrom2D = false;
     });
