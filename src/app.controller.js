@@ -66,23 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('search-input');
     const searchDropdown = document.getElementById('search-dropdown');
 
-    // 工具栏按钮
-    const toolSelect = document.getElementById('tool-select');
-    const toolPan = document.getElementById('tool-pan');
-    const toolRect = document.getElementById('tool-rect');
-    const toolZoomIn = document.getElementById('tool-zoom-in');
-    const toolZoomOut = document.getElementById('tool-zoom-out');
-    const toolReset = document.getElementById('tool-reset');
-    const toolSplitView = document.getElementById('tool-split-view');
-
-    // 2D/3D 分屏容器
+    // 2D/3D 分屏容器 (供视图切换使用)
     const view2dContainer = document.getElementById('view-2d-container');
     const view3dContainer = document.getElementById('view-3d-container');
-    let isSplitViewActive = false;
 
-    // Three.js 引擎变量
-    let scene, camera, renderer, controls;
-    let isThreeInitialized = false;
+    // 工具栏按钮已迁移至 src/ui/toolbar.js
 
     // 全局版本选择器
     const globalVersionSelect = document.getElementById('global-version-select');
@@ -245,102 +233,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ============ 工具模式切换 ============
-    function setToolMode(mode) {
-        // 同步到局部变量和全局状态
-        currentToolMode = mode;
-        AppState.currentToolMode = mode;
-        
-        // 同步到 canvasWrapper dataset 供批注管理器读取
-        if (canvasWrapper) {
-            canvasWrapper.dataset.toolMode = mode;
-        }
-        
-        // 重置所有工具按钮状态
-        toolSelect.classList.remove('tool-active');
-        toolPan.classList.remove('tool-active');
-        toolRect.classList.remove('tool-active');
-        
-        // 重置光标
-        canvasWrapper.classList.remove('cursor-default', 'cursor-grab', 'cursor-crosshair');
-        
-        switch(mode) {
-            case ToolMode.SELECT:
-                toolSelect.classList.add('tool-active');
-                canvasWrapper.classList.add('cursor-default');
-                break;
-            case ToolMode.PAN:
-                toolPan.classList.add('tool-active');
-                canvasWrapper.classList.add('cursor-grab');
-                break;
-            case ToolMode.ANNOTATE:
-                toolRect.classList.add('tool-active');
-                canvasWrapper.classList.add('cursor-crosshair');
-                break;
-        }
-    }
-    
-    // 监听工具模式变化事件
-    bus.on('TOOL_MODE_CHANGED', (mode) => {
-        setToolMode(mode);
-    });
-
-    // 监听视图切换，同步工具栏 UI（修复 3D 按钮消失问题）
-    bus.on('VIEW_CHANGED', (viewType) => {
-        currentDrawingType = viewType;
-        if (toolSplitView) {
-            // 仅在 PCB 模式下显示 3D 分屏按钮
-            if (viewType === 'pcb') {
-                toolSplitView.classList.remove('hidden');
-            } else {
-                toolSplitView.classList.add('hidden');
-            }
-        }
-    });
-
-    // ============ 批注工具下拉菜单交互 ============
-    const annotationMainBtn = document.getElementById('annotation-main-btn');
-    const annotationSubMenu = document.getElementById('annotation-sub-menu');
-
-    // 切换下拉菜单显示/隐藏
-    if (annotationMainBtn && annotationSubMenu) {
-        annotationMainBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            annotationSubMenu.classList.toggle('hidden');
-        });
-
-        // 点击下拉菜单内部不关闭
-        annotationSubMenu.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    }
-
-    // 全局点击监听：点击外部区域关闭下拉菜单
-    document.addEventListener('click', () => {
-        if (annotationSubMenu && !annotationSubMenu.classList.contains('hidden')) {
-            annotationSubMenu.classList.add('hidden');
-        }
-    });
-
-    // 工具按钮事件绑定
-    // 工具模式切换 - 通过 EventBus 解耦
-    if (toolSelect) toolSelect.addEventListener('click', () => bus.emit('TOOL_MODE_CHANGED', ToolMode.SELECT));
-    if (toolPan) toolPan.addEventListener('click', () => bus.emit('TOOL_MODE_CHANGED', ToolMode.PAN));
-    if (toolRect) {
-        toolRect.addEventListener('click', () => {
-            bus.emit('TOOL_MODE_CHANGED', ToolMode.ANNOTATE);
-            // 点击具体工具后关闭下拉菜单
-            if (annotationSubMenu) {
-                annotationSubMenu.classList.add('hidden');
-            }
-        });
-    }
-
-    // ============ 画布缩放功能 (V4.0 事件总线驱动) ============
-    // 滚轮逻辑已在 engine.2d.js 内部接管，此处只需绑定顶部工具栏按钮
-    if (toolZoomIn) toolZoomIn.addEventListener('click', () => bus.emit('ZOOM_IN'));
-    if (toolZoomOut) toolZoomOut.addEventListener('click', () => bus.emit('ZOOM_OUT'));
-    if (toolReset) toolReset.addEventListener('click', () => bus.emit('ZOOM_RESET'));
+    // ============ 工具栏功能已迁移至 src/ui/toolbar.js ============
+    // 画布缩放功能通过 EventBus 在 engine.2d.js 中处理
 
     // 高亮批注（带气泡联动）
     function highlightAnnotation(annotationId, version, breathing = false) {
@@ -500,17 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 显示分屏按钮，PCB 视图支持 3D 协同
         if (toolSplitView) toolSplitView.classList.remove('hidden');
-    }
-
-    // 绑定 3D 分屏按钮调用跨模块接口 (直接使用顶部已声明的变量)
-    if (toolSplitView) {
-        toolSplitView.addEventListener('click', () => {
-            if (typeof Mcad3D !== 'undefined' && typeof Mcad3D.toggleThreeSplitView === 'function') {
-                Mcad3D.toggleThreeSplitView(toolSplitView, view2dContainer, view3dContainer);
-            } else {
-                console.warn('3D 模块未正确加载');
-            }
-        });
     }
 
     // ============ 核心公共函数：选中器件 ============

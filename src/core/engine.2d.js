@@ -1,4 +1,5 @@
 // ============ V4.0 2D 引擎核心 - 画布状态管理 ============
+import { bus } from './event.bus.js';
 
 // 画布变换状态
 export let canvasState = {
@@ -47,11 +48,11 @@ export function zoom(factor, centerX, centerY, canvasWrapper, canvasState, updat
         const rect = canvasWrapper.getBoundingClientRect();
         const mouseX = centerX - rect.left;
         const mouseY = centerY - rect.top;
-        
+
         newTranslateX = mouseX - (mouseX - canvasState.translateX) * (newScale / canvasState.scale);
         newTranslateY = mouseY - (mouseY - canvasState.translateY) * (newScale / canvasState.scale);
     }
-    
+
     if (updateStateCallback) {
         updateStateCallback({
             scale: newScale,
@@ -59,18 +60,17 @@ export function zoom(factor, centerX, centerY, canvasWrapper, canvasState, updat
             translateY: newTranslateY
         });
     }
-    
+
     return { scale: newScale, translateX: newTranslateX, translateY: newTranslateY };
 }
 
 // ============ EventBus 事件监听 ============
-import { bus } from './event.bus.js';
 
 bus.on('ZOOM_IN', () => {
     const transformEl = document.getElementById('canvas-transform');
     const wrapperEl = document.getElementById('canvas-wrapper');
     if (!transformEl || !wrapperEl) return;
-    
+
     zoom(1.2, undefined, undefined, wrapperEl, canvasState, (newState) => {
         updateCanvasState(newState);
         updateCanvasTransform(transformEl, canvasState);
@@ -81,7 +81,7 @@ bus.on('ZOOM_OUT', () => {
     const transformEl = document.getElementById('canvas-transform');
     const wrapperEl = document.getElementById('canvas-wrapper');
     if (!transformEl || !wrapperEl) return;
-    
+
     zoom(0.8, undefined, undefined, wrapperEl, canvasState, (newState) => {
         updateCanvasState(newState);
         updateCanvasTransform(transformEl, canvasState);
@@ -91,7 +91,7 @@ bus.on('ZOOM_OUT', () => {
 bus.on('ZOOM_RESET', () => {
     const transformEl = document.getElementById('canvas-transform');
     if (!transformEl) return;
-    
+
     updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
     updateCanvasTransform(transformEl, canvasState);
 });
@@ -103,33 +103,35 @@ bus.on('CANVAS_STATE_CHANGED', () => {
     updateCanvasTransform(transformEl, canvasState);
 });
 
-// 初始化滚轮缩放
-document.addEventListener('DOMContentLoaded', () => {
-    const canvasWrapper = document.getElementById('canvas-wrapper');
-    if (canvasWrapper) {
-        canvasWrapper.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const factor = e.deltaY > 0 ? 0.9 : 1.1;
-            const transformEl = document.getElementById('canvas-transform');
-            if (!transformEl) return;
-
-            zoom(factor, e.clientX, e.clientY, canvasWrapper, canvasState, (newState) => {
-                updateCanvasState(newState);
-                updateCanvasTransform(transformEl, canvasState);
-            });
-        }, { passive: false });
-    }
+// 监听工具模式变化，同步本地状态
+bus.on('TOOL_MODE_CHANGED', (mode) => {
+    currentToolMode = mode;
 });
 
-// ============ 画布平移交互 (Pan) ============
-document.addEventListener('DOMContentLoaded', () => {
+// ============ 初始化函数 ============
+export function init2DEngine() {
     const canvasWrapper = document.getElementById('canvas-wrapper');
     const transformEl = document.getElementById('canvas-transform');
-    if (!canvasWrapper) return;
+    if (!canvasWrapper || !transformEl) {
+        console.warn('2D 引擎：找不到画布元素，初始化失败');
+        return;
+    }
 
     let isPanning = false;
     let panStartX, panStartY;
 
+    // 滚轮缩放
+    canvasWrapper.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+
+        zoom(factor, e.clientX, e.clientY, canvasWrapper, canvasState, (newState) => {
+            updateCanvasState(newState);
+            updateCanvasTransform(transformEl, canvasState);
+        });
+    }, { passive: false });
+
+    // 平移 - mousedown
     canvasWrapper.addEventListener('mousedown', (e) => {
         if (currentToolMode !== ToolMode.PAN) return;
         if (e.target.closest('.annotation-box') || e.target.closest('.annotation-input-panel')) return;
@@ -141,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasWrapper.classList.add('cursor-grabbing');
     });
 
+    // 平移 - mousemove
     canvasWrapper.addEventListener('mousemove', (e) => {
         if (!isPanning) return;
         updateCanvasState({
@@ -150,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCanvasTransform(transformEl, canvasState);
     });
 
+    // 平移 - 停止
     const stopPan = () => {
         if (isPanning) {
             isPanning = false;
@@ -160,4 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     canvasWrapper.addEventListener('mouseup', stopPan);
     canvasWrapper.addEventListener('mouseleave', stopPan);
-});
+
+    console.log('2D 引擎：渲染与交互总线初始化完成');
+}
