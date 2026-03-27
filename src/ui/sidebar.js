@@ -218,10 +218,23 @@ function generateTreeItem(ref, label, icon, isPrimary = false) {
  */
 export function renderDiffContent() {
     if (!tabContent || currentTab !== 'diff') return;
-    
-    // 从 app.controller.js 获取差异数据
+
+    // 获取差异数据
     const mockDiffData = window.mockDiffData || {};
-    
+
+    // === 体验优化：当数据为空时，渲染专业级的空状态提示 ===
+    if (Object.keys(mockDiffData).length === 0) {
+        tabContent.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                <i class="fas fa-code-compare text-3xl mb-2"></i>
+                <span class="text-xs font-bold text-gray-500">暂无差异项</span>
+                <span class="text-[10px] mt-1 text-center px-4">当前为最早期版本，无历史可对比；<br>或与所选历史版本之间无变更。</span>
+            </div>
+        `;
+        return;
+    }
+    // ====================================================
+
     const typeLabels = {
         'added': { text: '新增', color: 'bg-green-500', textColor: 'text-green-700' },
         'modified': { text: '修改', color: 'bg-yellow-500', textColor: 'text-yellow-700' },

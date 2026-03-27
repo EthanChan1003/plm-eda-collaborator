@@ -119,6 +119,11 @@ export function initVersionManager() {
         if (lowerVersions.length === 0) {
             versionCompareSelect.innerHTML = '<option value="" disabled selected>无历史版本</option>';
             versionCompareSelect.disabled = true;
+
+            // === 核心修复：没有历史版本时，必须彻底清空内存中的差异数据 ===
+            mockDiffData = {};
+            window.mockDiffData = mockDiffData;
+            // ==========================================================
         } else {
             const currentVal = versionCompareSelect.value;
             versionCompareSelect.disabled = false;
