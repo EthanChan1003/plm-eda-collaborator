@@ -174,6 +174,21 @@ export function init2DEngine() {
     // === 确保 2D 外层视口具有相对定位，以此作为 UI 的边界 ===
     view2dContainer.style.position = 'relative';
 
+    // === 核心修复 1：锁死画布基础尺寸，防止 Flex 缩放导致批注与 SVG 坐标系脱节 ===
+    const canvasSchematic = document.getElementById('canvas-schematic');
+    const canvasPcb = document.getElementById('canvas-pcb');
+    if (canvasSchematic) {
+        canvasSchematic.style.flexShrink = '0';
+        canvasSchematic.style.minWidth = '1000px';
+        canvasSchematic.style.minHeight = '800px';
+    }
+    if (canvasPcb) {
+        canvasPcb.style.flexShrink = '0';
+        canvasPcb.style.minWidth = '1000px';
+        canvasPcb.style.minHeight = '800px';
+    }
+    // =======================================================================
+
     // === 动态注入 2D 操作提示 (HUD) ===
     const hintOverlay = document.createElement('div');
     hintOverlay.className = 'absolute bottom-4 right-4 z-50 pointer-events-none bg-gray-900/60 backdrop-blur-sm text-gray-200 text-[11px] px-3 py-2.5 rounded shadow-lg flex flex-col space-y-2 border border-white/10';

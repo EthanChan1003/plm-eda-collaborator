@@ -87,8 +87,9 @@ function getCanvasLocalCoordinates(clientX, clientY) {
     if (!activeCanvas) return { x: 0, y: 0 };
     const rect = activeCanvas.getBoundingClientRect();
     return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
+        // === 核心修复 2：真实坐标必须除以当前的缩放倍数 ===
+        x: (clientX - rect.left) / canvasState.scale,
+        y: (clientY - rect.top) / canvasState.scale
     };
 }
 
@@ -164,19 +165,20 @@ function bindDrawingEvents() {
  * 显示批注输入面板
  */
 function showAnnotationInputPanel(annotationBox) {
-    const boxLeft = parseInt(annotationBox.style.left);
-    const boxTop = parseInt(annotationBox.style.top);
-    const boxWidth = parseInt(annotationBox.style.width);
-    const boxHeight = parseInt(annotationBox.style.height);
+    const rect = annotationBox.getBoundingClientRect();
+    const wrapperRect = canvasWrapper.getBoundingClientRect();
 
     const panel = document.createElement('div');
-    panel.className = 'annotation-input-panel';
-    
-    const panelLeft = (boxLeft + boxWidth + 10) * canvasState.scale + canvasState.translateX;
-    const panelTop = boxTop * canvasState.scale + canvasState.translateY;
-    
+    // 增加 z-50 确保面板在最上层
+    panel.className = 'annotation-input-panel absolute z-50';
+
+    // === 核心修复 3：基于浏览器视口精确计算弹出面板位置 ===
+    const panelLeft = rect.right + 10 - wrapperRect.left;
+    const panelTop = rect.top - wrapperRect.top;
+
     panel.style.left = panelLeft + 'px';
     panel.style.top = panelTop + 'px';
+    // =================================================
     panel.innerHTML = `
         <div class="text-xs font-bold text-gray-700 mb-2">添加评审意见</div>
         <textarea id="annotation-text" class="w-full h-20 px-2 py-1.5 border border-gray-200 rounded text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="请输入评审意见..."></textarea>
@@ -402,13 +404,11 @@ function executeLocate(annotationId, version) {
     }
 
     // 计算变换参数
-    const wrapperRect = canvasWrapper.getBoundingClientRect();
-    const wrapperCenterX = wrapperRect.width / 2;
-    const wrapperCenterY = wrapperRect.height / 2;
     const targetScale = 1.5;
-    
-    const targetTranslateX = wrapperCenterX - annotation.centerX * targetScale;
-    const targetTranslateY = wrapperCenterY - annotation.centerY * targetScale;
+
+    // === 核心修复 4：修复定位算法，基准是画布正中心 (500, 400) ===
+    const targetTranslateX = (500 - annotation.centerX) * targetScale;
+    const targetTranslateY = (400 - annotation.centerY) * targetScale;
 
     // 应用动画
     canvasTransform.style.transition = 'transform 0.5s ease-out';
