@@ -42,8 +42,10 @@ export function initAnnotationManager() {
     // 监听视图切换
     bus.on('VIEW_CHANGED', (viewType) => {
         currentDrawingType = viewType;
-        // 更新跨视图预警
-        updateCrossViewWarnings();
+        // 延迟更新跨视图预警，确保 DOM 已更新
+        setTimeout(() => {
+            updateCrossViewWarnings();
+        }, 100);
     });
     
     // 监听工具模式变化
