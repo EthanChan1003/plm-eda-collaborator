@@ -30,6 +30,8 @@ export function initAnnotationManager() {
     // 监听版本切换，自动显隐对应版本的批注框
     bus.on('VERSION_CHANGED', (newVersion) => {
         refreshAnnotationVisibility(newVersion);
+        // 更新跨视图预警
+        updateCrossViewWarnings();
     });
 
     // 监听定位请求
@@ -40,6 +42,8 @@ export function initAnnotationManager() {
     // 监听视图切换
     bus.on('VIEW_CHANGED', (viewType) => {
         currentDrawingType = viewType;
+        // 更新跨视图预警
+        updateCrossViewWarnings();
     });
     
     // 监听工具模式变化
@@ -445,6 +449,9 @@ window.toggleAnnotationStatus = function(id, version) {
     
     // 触发反应式更新
     bus.emit('ANNOTATIONS_UPDATED', annotations);
+    
+    // 更新跨视图预警（解决问题后红灯应熄灭）
+    updateCrossViewWarnings();
 };
 
 /**
@@ -494,6 +501,37 @@ window.locateAnnotation = function(annotationId, version) {
  */
 export function getAnnotations(version) {
     return annotations.filter(a => a.version === (version || AppState.currentVersion));
+}
+
+/**
+ * 更新跨视图预警系统
+ * 为在当前视图中、但批注创建于另一个视图的器件添加警告样式
+ */
+function updateCrossViewWarnings() {
+    // 1. 清除当前画布中所有预警状态
+    document.querySelectorAll('.cross-view-warning').forEach(el => {
+        el.classList.remove('cross-view-warning');
+    });
+
+    // 2. 筛选跨视图的未解决批注
+    // 条件：当前版本 + 未解决状态 + 在另一个视图中创建
+    const crossViewAnnotations = annotations.filter(a =>
+        a.version === AppState.currentVersion &&
+        a.status === 'open' &&
+        a.viewType !== currentDrawingType
+    );
+
+    // 3. 为对应器件添加预警样式
+    crossViewAnnotations.forEach(annotation => {
+        const targetRef = annotation.targetRef;
+        if (!targetRef) return;
+
+        // 在当前激活的画布中查找对应器件
+        const components = document.querySelectorAll(`#canvas-${currentDrawingType} .eda-component[data-ref="${targetRef}"]`);
+        components.forEach(comp => {
+            comp.classList.add('cross-view-warning');
+        });
+    });
 }
 
 /**
