@@ -131,6 +131,7 @@ export function renderTreeContent() {
                 </div>
                 <div class="ml-4 space-y-1 mt-1">
                     ${generateTreeItem('J1', 'SWD 4P 调试', 'plug')}
+                    ${generateTreeItem('C4', '100nF 接口滤波', 'bolt')}
                 </div>
             </div>
         `;

@@ -116,6 +116,10 @@ export function initSelectionManager() {
         document.querySelectorAll('.note-item').forEach(item => {
             item.classList.remove('active');
         });
+        // 新增：点击空白处时，同步隐藏批注气泡
+        if (typeof window.hideAnnotationBubble === 'function') {
+            window.hideAnnotationBubble();
+        }
     }
 
     // ============ 全局 Hover 联动函数（挂载到 window 供 HTML 内联调用） ============

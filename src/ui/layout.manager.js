@@ -138,6 +138,12 @@ export function initLayoutManager() {
         }
     });
 
+    // 监听批注管理器发出的跨视图请求
+    bus.on('REQUEST_VIEW_CHANGE', (viewType) => {
+        if (viewType === 'schematic') switchToSchematic();
+        else if (viewType === 'pcb') switchToPcb();
+    });
+
     // 初始触发
     bus.emit('VIEW_CHANGED', currentDrawingType);
     bus.emit('TAB_CHANGED', currentTab);

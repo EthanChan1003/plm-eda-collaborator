@@ -69,8 +69,17 @@ export function initToolbar() {
     bus.on('VIEW_CHANGED', (viewType) => {
         const toolSplitView = document.getElementById('tool-split-view');
         if (toolSplitView) {
-            // 仅在 PCB 模式下显示 3D 分屏按钮
             toolSplitView.classList.toggle('hidden', viewType !== 'pcb');
+        }
+        // 新增：如果切回原理图且当前 3D 处于开启状态，则强制关闭
+        if (viewType === 'schematic' && AppState.isSplitViewActive) {
+            import('../features/mcad.3d.js').then(Mcad3D => {
+                const view2d = document.getElementById('view-2d-container');
+                const view3d = document.getElementById('view-3d-container');
+                if (Mcad3D && typeof Mcad3D.toggleThreeSplitView === 'function') {
+                    Mcad3D.toggleThreeSplitView(toolSplitView, view2d, view3d);
+                }
+            });
         }
     });
 

@@ -176,6 +176,12 @@ export function initVersionManager() {
     // EventBus 监听
     bus.on('TAB_CHANGED', (tabKey) => {
         currentTab = tabKey;
+        // 新增：如果离开 Diff 页签，必须清除高亮
+        if (tabKey === 'diff') {
+            applyDiffHighlight();
+        } else {
+            clearDiffHighlight();
+        }
     });
 
     // 初始化
