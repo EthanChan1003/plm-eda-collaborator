@@ -231,8 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 全局版本选择器事件
     if (globalVersionSelect) {
         globalVersionSelect.addEventListener('change', (e) => {
-            // 清理动作：隐藏气泡
-            hideAnnotationBubble();
             switchGlobalVersion(e.target.value);
         });
     }
@@ -244,75 +242,6 @@ document.addEventListener('DOMContentLoaded', () => {
             calculateVersionDiff(AppState.currentVersion, compareVersion);
             bus.emit('TAB_CHANGED', 'diff');
             applyDiffHighlight();
-        });
-    }
-
-    // ============ 批注气泡系统 ============
-    function showAnnotationBubble(annotationId, version) {
-        const targetVersion = version || AppState.currentVersion;
-        const annotation = getAnnotations().find(a => a.id === annotationId && a.version === targetVersion);
-        if (!annotation || !annotation.element) return;
-
-        // 定位气泡
-        const rect = annotation.element.getBoundingClientRect();
-        const bubbleX = rect.right + 10;
-        const bubbleY = rect.top;
-
-        annotationBubble.style.left = bubbleX + 'px';
-        annotationBubble.style.top = bubbleY + 'px';
-
-        // 数据防御性降级：提供默认值防止渲染崩溃
-        const authorName = annotation.author || '系统预置';
-        const authorInitial = authorName.charAt(0);
-        const noteTime = annotation.time || '';
-
-        // 填充内容（包含作者信息）
-        annotationBubble.innerHTML = `
-            <div class="flex items-start justify-between mb-2">
-                <div class="flex items-center">
-                    <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold mr-2">${authorInitial}</div>
-                    <div>
-                        <div class="text-xs font-medium text-gray-900">${authorName}</div>
-                        <div class="text-[10px] text-gray-500">${noteTime}</div>
-                    </div>
-                </div>
-                <button id="close-bubble" class="text-gray-400 hover:text-gray-600 transition-colors ml-2">
-                    <i class="fas fa-times text-xs"></i>
-                </button>
-            </div>
-            <div class="text-sm text-gray-700 leading-relaxed">${annotation.text}</div>
-        `;
-
-        // 重新绑定关闭按钮事件
-        const closeBtn = annotationBubble.querySelector('#close-bubble');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', hideAnnotationBubble);
-        }
-
-        // 显示气泡
-        annotationBubble.classList.remove('hidden');
-    }
-
-    function hideAnnotationBubble() {
-        annotationBubble.classList.add('hidden');
-    }
-
-    // 关闭气泡按钮
-    if (closeBubbleBtn) {
-        closeBubbleBtn.addEventListener('click', hideAnnotationBubble);
-    }
-
-    // 确保气泡元素存在
-    if (!annotationBubble || !bubbleContent) {
-        console.warn('Annotation bubble elements not found');
-    }
-
-    // 点击画布其他区域隐藏气泡
-    if (canvasWrapper) {
-        canvasWrapper.addEventListener('click', (e) => {
-            if (!e.target.closest('.annotation-box') && !e.target.closest('#annotation-bubble')) {
-                hideAnnotationBubble();
-            }
         });
     }
 
@@ -365,10 +294,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 toolSplitView.classList.remove('hidden');
             } else {
                 toolSplitView.classList.add('hidden');
-                // 如果当前正在分屏模式切换回原理图，需强制关闭分屏
-                if (AppState.isSplitViewActive && typeof toggleSplitView === 'function') {
-                    toggleSplitView();
-                }
             }
         }
     });
@@ -417,47 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toolZoomOut) toolZoomOut.addEventListener('click', () => bus.emit('ZOOM_OUT'));
     if (toolReset) toolReset.addEventListener('click', () => bus.emit('ZOOM_RESET'));
 
-    // ============ 画布平移功能 ============
-    let isPanning = false;
-    let panStartX, panStartY;
-
-    canvasWrapper.addEventListener('mousedown', (e) => {
-        if (currentToolMode !== ToolMode.PAN) return;
-        if (e.target.closest('.annotation-box') || e.target.closest('.annotation-input-panel')) return;
-
-        isPanning = true;
-        panStartX = e.clientX - canvasState.translateX;
-        panStartY = e.clientY - canvasState.translateY;
-        canvasWrapper.classList.remove('cursor-grab');
-        canvasWrapper.classList.add('cursor-grabbing');
-    });
-
-    canvasWrapper.addEventListener('mousemove', (e) => {
-        if (!isPanning) return;
-        
-        updateCanvasState({
-            translateX: e.clientX - panStartX,
-            translateY: e.clientY - panStartY
-        });
-        bus.emit('CANVAS_STATE_CHANGED');
-    });
-
-    canvasWrapper.addEventListener('mouseup', () => {
-        if (isPanning) {
-            isPanning = false;
-            canvasWrapper.classList.remove('cursor-grabbing');
-            canvasWrapper.classList.add('cursor-grab');
-        }
-    });
-
-    canvasWrapper.addEventListener('mouseleave', () => {
-        if (isPanning) {
-            isPanning = false;
-            canvasWrapper.classList.remove('cursor-grabbing');
-            canvasWrapper.classList.add('cursor-grab');
-        }
-    });
-
     // 高亮批注（带气泡联动）
     function highlightAnnotation(annotationId, version, breathing = false) {
         // 清除所有高亮
@@ -485,10 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 noteItem.classList.add('active');
                 noteItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-
-            // 显示气泡
-            // 【修复】将当前的 targetVersion 传给气泡生成函数
-            showAnnotationBubble(annotationId, targetVersion);
         }
     }
 
@@ -582,9 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 切换到原理图视图
     function switchToSchematic() {
-        // 清理动作：隐藏气泡
-        hideAnnotationBubble();
-
         currentDrawingType = 'schematic';
         if (btnSchematic) {
             btnSchematic.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
@@ -602,14 +479,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 隐藏分屏按钮，原理图不支持 3D 视图
         if (toolSplitView) toolSplitView.classList.add('hidden');
-        if (isSplitViewActive) toggleSplitView();
     }
 
     // 切换到PCB视图
     function switchToPcb() {
-        // 清理动作：隐藏气泡
-        hideAnnotationBubble();
-
         currentDrawingType = 'pcb';
         if (btnPcb) {
             btnPcb.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
@@ -629,287 +502,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (toolSplitView) toolSplitView.classList.remove('hidden');
     }
 
-    // ============ 真正的 3D 引擎 (Three.js) ============
-    function initThreeEngine() {
-        if (isThreeInitialized) return;
-        
-        // 1. 初始化场景
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color('#1e293b');
-
-        // 2. 初始化相机 (【修复】拉远相机距离，使其与 2D 视角的初始大小完美匹配)
-        const width = view3dContainer.clientWidth || 500;
-        const height = view3dContainer.clientHeight || 800;
-        camera = new THREE.PerspectiveCamera(45, width / height, 1, 3000);
-        camera.position.set(0, -900, 1100); // 调整 Z 轴和 Y 轴，让 900x700 的板子完全居中且大小合适
-
-        // 3. 初始化渲染器
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(width, height);
-        // 优化阴影质量
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        view3dContainer.appendChild(renderer.domElement);
-
-        // 4. 添加灯光
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); 
-        scene.add(ambientLight);
-
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6); 
-        dirLight.position.set(200, -200, 600);
-        dirLight.castShadow = true;
-        scene.add(dirLight);
-
-        // 5. 轨道控制器
-        controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.target.set(0, 0, 0); // 确保镜头始终对准板子中心
-
-        // 6. 绘制 PCB 物理基板
-        createPcbBoard();
-        
-        // 【新增】7. 绘制具有物理高度的 3D 元器件
-        createComponents();
-        
-        // 【新增】8. 动态解析并生成 3D 走线网络
-        createTraces();
-
-        // 9. 渲染循环
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        // 8. 【修复核心】使用 ResizeObserver 实时监听容器变化，彻底告别拉伸变形
-        const resizeObserver = new ResizeObserver(entries => {
-            if (!isSplitViewActive || !camera || !renderer) return;
-            for (let entry of entries) {
-                const w = entry.contentRect.width;
-                const h = entry.contentRect.height;
-                // 只有当容器真正有尺寸时才更新画布
-                if (w > 0 && h > 0) {
-                    camera.aspect = w / h;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(w, h);
-                }
-            }
-        });
-        // 绑定观察者到 3D 容器
-        resizeObserver.observe(view3dContainer);
-
-        // ============ 8. 3D 交互引擎 (Raycaster) ============
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-
-        renderer.domElement.addEventListener('click', (event) => {
-            if (!isSplitViewActive) return;
-
-            // 【关键修复】阻止事件冒泡！
-            // 防止点击事件向上传递，触发 DOM 顶层的"清空所有选中状态"逻辑
-            event.stopPropagation();
-
-            // 获取 3D 画布在屏幕上的绝对包围盒
-            const rect = renderer.domElement.getBoundingClientRect();
-            
-            // 将鼠标屏幕坐标转换为 Three.js 的归一化设备坐标 (NDC: -1 到 +1)
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-            // 从摄像机位置穿过鼠标点击位置发射射线
-            raycaster.setFromCamera(mouse, camera);
-
-            // 计算射线与场景中所有物体的交点
-            const intersects = raycaster.intersectObjects(scene.children, true);
-
-            if (intersects.length > 0) {
-                // 筛选出被击中的、并且我们在 createComponents 中埋入了 ref 数据的器件实体
-                const target = intersects.find(intersect => intersect.object.userData && intersect.object.userData.ref);
-                
-                if (target) {
-                    const ref = target.object.userData.ref;
-                    
-                    // 【核心联动】调用我们在 2D 环境下早已写好的全局器件选中函数！
-                    // 这将自动触发：2D 图纸高亮 + 居中 + 右下角属性面板弹出
-                    if (typeof selectComponent === 'function') {
-                        selectComponent(ref);
-                    }
-                }
-            }
-        });
-
-        isThreeInitialized = true;
-    }
-
-    function createPcbBoard() {
-        const boardWidth = 900;
-        const boardHeight = 700;
-        const boardThickness = 16; 
-        const cornerRadius = 20; // 严格映射 2D 的倒角半径
-
-        const shape = new THREE.Shape();
-
-        // 1. 绘制带有倒角的外框轮廓 (以坐标系中心进行绝对对称映射)
-        const x = -boardWidth / 2;
-        const y = -boardHeight / 2;
-        shape.moveTo(x + cornerRadius, y);
-        shape.lineTo(x + boardWidth - cornerRadius, y);
-        shape.quadraticCurveTo(x + boardWidth, y, x + boardWidth, y + cornerRadius);
-        shape.lineTo(x + boardWidth, y + boardHeight - cornerRadius);
-        shape.quadraticCurveTo(x + boardWidth, y + boardHeight, x + boardWidth - cornerRadius, y + boardHeight);
-        shape.lineTo(x + cornerRadius, y + boardHeight);
-        shape.quadraticCurveTo(x, y + boardHeight, x, y + boardHeight - cornerRadius);
-        shape.lineTo(x, y + cornerRadius);
-        shape.quadraticCurveTo(x, y, x + cornerRadius, y);
-
-        // 2. 挖掘 4 个物理通孔 (严格映射 2D 坐标)
-        const holeCoords = [
-            { x: -400, y: 300 },  // 左上 (对应 2D 的 cx=100, cy=100)
-            { x: 400, y: 300 },   // 右上
-            { x: -400, y: -300 }, // 左下
-            { x: 400, y: -300 }   // 右下
-        ];
-
-        holeCoords.forEach(coord => {
-            const hole = new THREE.Path();
-            hole.absarc(coord.x, coord.y, 16, 0, Math.PI * 2, false); // 半径与 2D 一致
-            shape.holes.push(hole); // 在 Shape 中打孔
-        });
-
-        // 3. 沿 Z 轴挤压成 3D 实体
-        const extrudeSettings = {
-            depth: boardThickness,
-            bevelEnabled: false // 关闭额外倒角，以保证板面 Z=8 坐标的绝对精确
-        };
-        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        
-        // 【关键】Extrude 默认从 Z=0 往正方向挤压 16。我们将其后移一半，
-        // 让板子完美跨越 Z(-8) 到 Z(8)，完美承接后续元器件和走线的贴片高度！
-        geometry.translate(0, 0, -boardThickness / 2);
-
-        // 4. 赋予经典工业绿油材质
-        const material = new THREE.MeshPhongMaterial({ 
-            color: '#166534', 
-            shininess: 40
-        });
-        
-        const board = new THREE.Mesh(geometry, material);
-        board.receiveShadow = true;
-        board.castShadow = true;
-        scene.add(board);
-    }
-
-    // ============ 3D 元器件生成引擎 ============
-    function createComponents() {
-        // 2D 坐标映射到 3D 空间的辅助函数
-        function svgTo3D(x, y, w, h, zThickness) {
-            return {
-                x: (x + w / 2) - 500,        // X轴偏移量 (原点在500)
-                y: 400 - (y + h / 2),        // Y轴反转并计算偏移 (原点在400)
-                z: 8 + (zThickness / 2)      // 板厚(16)的一半 + 器件高度的一半
-            };
-        }
-
-        // 器件物理尺寸字典 (映射自 2D 图纸与真实物理高度)
-        const componentsData = [
-            { ref: 'U1', x: 350, y: 280, w: 160, h: 160, z: 12, color: '#1f2937' }, // 主控 MCU
-            { ref: 'U2', x: 100, y: 140, w: 50,  h: 40,  z: 15, color: '#1f2937' }, // LDO
-            { ref: 'J1', x: 100, y: 600, w: 50,  h: 80,  z: 85, color: '#f8fafc' }, // 高耸的排针 (干涉主角)
-            { ref: 'Y1', x: 620, y: 290, w: 60,  h: 25,  z: 30, color: '#94a3b8' }, // 晶振 (金属色)
-            { ref: 'C1', x: 260, y: 300, w: 25,  h: 12,  z: 8,  color: '#b45309' }, // 贴片电容
-            { ref: 'C2', x: 260, y: 380, w: 30,  h: 14,  z: 10, color: '#b45309' },
-            { ref: 'C3', x: 720, y: 290, w: 18,  h: 8,   z: 6,  color: '#b45309' },
-            { ref: 'C4', x: 170, y: 600, w: 25,  h: 12,  z: 8,  color: '#b45309' },
-            { ref: 'R1', x: 620, y: 410, w: 30,  h: 12,  z: 6,  color: '#020617' }, // 贴片电阻
-            { ref: 'R2', x: 620, y: 470, w: 30,  h: 12,  z: 6,  color: '#020617' },
-            { ref: 'R3', x: 760, y: 310, w: 30,  h: 12,  z: 6,  color: '#020617' },
-            { ref: 'D1', x: 860, y: 310, w: 30,  h: 14,  z: 12, color: '#ef4444' }  // LED 指示灯
-        ];
-
-        componentsData.forEach(comp => {
-            const pos = svgTo3D(comp.x, comp.y, comp.w, comp.h, comp.z);
-            const geometry = new THREE.BoxGeometry(comp.w, comp.h, comp.z);
-            
-            // LED 特殊自发光材质处理
-            const materialParams = { color: comp.color, shininess: 50 };
-            if (comp.ref === 'D1') materialParams.emissive = new THREE.Color('#991b1b');
-            
-            const material = new THREE.MeshPhongMaterial(materialParams);
-            const mesh = new THREE.Mesh(geometry, material);
-            
-            mesh.position.set(pos.x, pos.y, pos.z);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            mesh.userData = { ref: comp.ref }; // 埋入位号数据，用于后续互动联动
-            
-            scene.add(mesh);
-        });
-    }
-
-    // ============ 3D 数字主线：动态解析走线网络 ============
-    function createTraces() {
-        // SVG Path 转 3D 线段解析器
-        function parsePathToLine(dStr, zPos, colorHex) {
-            const points = [];
-            // 按 M (Move) 或 L (Line) 切割指令
-            const commands = dStr.split(/(?=[ML])/); 
-            commands.forEach(cmd => {
-                const parts = cmd.trim().split(' ');
-                if (parts.length >= 3) {
-                    const x = parseFloat(parts[1]) - 500;
-                    const y = 400 - parseFloat(parts[2]);
-                    points.push(new THREE.Vector3(x, y, zPos));
-                }
-            });
-            
-            if (points.length > 1) {
-                const geometry = new THREE.BufferGeometry().setFromPoints(points);
-                const material = new THREE.LineBasicMaterial({ color: colorHex });
-                const line = new THREE.Line(geometry, material);
-                scene.add(line);
-            }
-        }
-
-        // 提取顶层走线 (红色，贴于板上)
-        const topPaths = document.querySelectorAll('#pcb-layer-top path');
-        topPaths.forEach(p => {
-            const d = p.getAttribute('d');
-            if(d) parsePathToLine(d, 8.1, 0xef4444); // 位于 Z = 8.1
-        });
-
-        // 提取底层走线 (蓝色，贴于板底)
-        const bottomPaths = document.querySelectorAll('#pcb-layer-bottom path');
-        bottomPaths.forEach(p => {
-            const d = p.getAttribute('d');
-            if(d) parsePathToLine(d, -8.1, 0x3b82f6); // 位于 Z = -8.1
-        });
-    }
-
-    // 切换 2D/3D 分屏
-    function toggleSplitView() {
-        isSplitViewActive = !isSplitViewActive;
-        
-        if (isSplitViewActive) {
-            toolSplitView.classList.add('bg-blue-50', 'text-blue-600');
-            view2dContainer.style.flex = '0 0 50%';
-            view3dContainer.style.width = '50%';
-            
-            // 首次展开时初始化引擎
-            if (!isThreeInitialized) {
-                initThreeEngine();
-            }
-            // 尺寸的自适应将由 ResizeObserver 自动接管
-        } else {
-            toolSplitView.classList.remove('bg-blue-50', 'text-blue-600');
-            view2dContainer.style.flex = '1';
-            view3dContainer.style.width = '0';
-        }
-    }
-    
+    // 绑定 3D 分屏按钮调用跨模块接口
+    const view2dContainer = document.getElementById('view-2d-container');
+    const view3dContainer = document.getElementById('view-3d-container');
     if (toolSplitView) {
-        toolSplitView.addEventListener('click', toggleSplitView);
+        toolSplitView.addEventListener('click', () => {
+            if (Mcad3D && typeof Mcad3D.toggleThreeSplitView === 'function') {
+                Mcad3D.toggleThreeSplitView(toolSplitView, view2dContainer, view3dContainer);
+            }
+        });
     }
 
     // ============ 核心公共函数：选中器件 ============
@@ -1283,147 +884,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始化版本选择器
     initGlobalVersionSelect();
     updateCompareVersionOptions();
-
-    // ============ PDF 评审报告导出功能 ============
-    const btnExportPdf = document.getElementById('btn-export-pdf');
-    if (btnExportPdf) {
-        btnExportPdf.addEventListener('click', generatePDFReport);
-    }
-
-    async function generatePDFReport() {
-        // 显示 Loading 状态
-        const btnExportPdf = document.getElementById('btn-export-pdf');
-        const originalBtnText = btnExportPdf.innerHTML;
-        btnExportPdf.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>正在生成...';
-        btnExportPdf.disabled = true;
-
-        try {
-            // 步骤 A：捕获画布快照
-            const canvasWrapper = document.getElementById('canvas-wrapper');
-            const snapshotImg = document.getElementById('report-snapshot-img');
-            const viewTypeSpan = document.getElementById('report-view-type');
-
-            // 更新视图类型文字
-            viewTypeSpan.textContent = currentDrawingType === 'schematic' ? '原理图' : 'PCB';
-
-            // 使用 html2canvas 捕获画布
-            const canvas = await html2canvas(canvasWrapper, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#f8f9fa'
-            });
-
-            // 转为 Base64 图片数据
-            const imageData = canvas.toDataURL('image/jpeg', 0.95);
-            snapshotImg.src = imageData;
-
-            // 步骤 1：数据计算 - 过滤当前版本的批注
-            const versionAnnotations = getAnnotations().filter(a => a.version === AppState.currentVersion);
-            const totalCount = versionAnnotations.length;
-            const openCount = versionAnnotations.filter(a => a.status === 'open').length;
-            const resolvedCount = versionAnnotations.filter(a => a.status === 'resolved').length;
-
-            // 步骤 2：数据注入
-            document.getElementById('report-version').textContent = AppState.currentVersion;
-            document.getElementById('report-date').textContent = new Date().toLocaleDateString('zh-CN');
-            document.getElementById('report-total').textContent = totalCount;
-            document.getElementById('report-open').textContent = openCount;
-            document.getElementById('report-resolved').textContent = resolvedCount;
-
-            // 步骤 3：表格生成
-            const tableBody = document.getElementById('report-table-body');
-            tableBody.innerHTML = '';
-
-            if (versionAnnotations.length === 0) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="p-4 text-center text-gray-500">当前版本暂无批注</td>
-                    </tr>
-                `;
-            } else {
-                versionAnnotations.forEach(note => {
-                    const viewLabel = note.viewType === 'schematic' ? '原理图' : 'PCB';
-                    const statusClass = note.status === 'open' ? 'text-red-600' : 'text-green-600';
-                    const statusText = note.status === 'open' ? '待解决' : '已解决';
-
-                    const row = document.createElement('tr');
-                    row.className = 'border-b border-gray-200 hover:bg-gray-50';
-                    row.innerHTML = `
-                        <td class="p-2 font-medium">#${note.id}</td>
-                        <td class="p-2">${viewLabel}</td>
-                        <td class="p-2 font-mono text-xs">${note.targetRef || '-'}</td>
-                        <td class="p-2">${note.text}</td>
-                        <td class="p-2 ${statusClass} font-medium">${statusText}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-            }
-
-            // 步骤 C：离屏克隆与导出（延迟确保图片加载）
-            setTimeout(() => {
-                const originalElement = document.getElementById('pdf-report-template');
-
-                // 深拷贝模板
-                const clonedElement = originalElement.cloneNode(true);
-                clonedElement.id = 'pdf-report-clone'; // 避免 ID 冲突
-                clonedElement.classList.remove('hidden', 'absolute', 'z-[-10]', 'top-0', 'left-0');
-
-                // 创建离屏容器
-                const offScreenContainer = document.createElement('div');
-                offScreenContainer.style.position = 'absolute';
-                offScreenContainer.style.left = '-9999px';
-                offScreenContainer.style.top = '0';
-                offScreenContainer.appendChild(clonedElement);
-                document.body.appendChild(offScreenContainer);
-
-                const opt = {
-                    margin: 0,
-                    filename: `硬件评审报告_${AppState.currentVersion}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: {
-                        scale: 2,
-                        useCORS: true,
-                        logging: false,
-                        // 使用全局 html2canvas 实例
-                        html2canvas: window.html2canvas
-                    },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-
-                // 针对克隆节点生成 PDF
-                html2pdf().set(opt).from(clonedElement).save().then(() => {
-                    // 生成完毕后销毁离屏容器
-                    document.body.removeChild(offScreenContainer);
-                    // 恢复按钮状态
-                    btnExportPdf.innerHTML = originalBtnText;
-                    btnExportPdf.disabled = false;
-                }).catch(err => {
-                    console.error('PDF 导出失败:', err);
-                    if (document.body.contains(offScreenContainer)) {
-                        document.body.removeChild(offScreenContainer);
-                    }
-                    // 恢复按钮状态
-                    btnExportPdf.innerHTML = originalBtnText;
-                    btnExportPdf.disabled = false;
-                    alert('PDF 导出失败，请重试');
-                });
-            }, 100); // 100ms 延迟确保图片渲染
-
-        } catch (err) {
-            console.error('PDF 生成失败:', err);
-            btnExportPdf.innerHTML = originalBtnText;
-            btnExportPdf.disabled = false;
-            alert('PDF 生成失败，请重试');
-        }
-    }
-
-    // ============ 全局交互熔断 ============
-    // 当用户在画布区域点击（准备拖拽）或滚动滚轮（准备缩放）时，立即隐藏气泡
-    if (canvasWrapper) {
-        canvasWrapper.addEventListener('mousedown', hideAnnotationBubble);
-        canvasWrapper.addEventListener('wheel', hideAnnotationBubble);
-    }
 
     // 5. 恢复版本差异的高亮渲染逻辑
     function applyDiffHighlight() {

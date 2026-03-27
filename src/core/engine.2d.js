@@ -112,11 +112,52 @@ document.addEventListener('DOMContentLoaded', () => {
             const factor = e.deltaY > 0 ? 0.9 : 1.1;
             const transformEl = document.getElementById('canvas-transform');
             if (!transformEl) return;
-            
+
             zoom(factor, e.clientX, e.clientY, canvasWrapper, canvasState, (newState) => {
                 updateCanvasState(newState);
                 updateCanvasTransform(transformEl, canvasState);
             });
         }, { passive: false });
     }
+});
+
+// ============ 画布平移交互 (Pan) ============
+document.addEventListener('DOMContentLoaded', () => {
+    const canvasWrapper = document.getElementById('canvas-wrapper');
+    const transformEl = document.getElementById('canvas-transform');
+    if (!canvasWrapper) return;
+
+    let isPanning = false;
+    let panStartX, panStartY;
+
+    canvasWrapper.addEventListener('mousedown', (e) => {
+        if (currentToolMode !== ToolMode.PAN) return;
+        if (e.target.closest('.annotation-box') || e.target.closest('.annotation-input-panel')) return;
+
+        isPanning = true;
+        panStartX = e.clientX - canvasState.translateX;
+        panStartY = e.clientY - canvasState.translateY;
+        canvasWrapper.classList.remove('cursor-grab');
+        canvasWrapper.classList.add('cursor-grabbing');
+    });
+
+    canvasWrapper.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
+        updateCanvasState({
+            translateX: e.clientX - panStartX,
+            translateY: e.clientY - panStartY
+        });
+        updateCanvasTransform(transformEl, canvasState);
+    });
+
+    const stopPan = () => {
+        if (isPanning) {
+            isPanning = false;
+            canvasWrapper.classList.remove('cursor-grabbing');
+            canvasWrapper.classList.add('cursor-grab');
+            bus.emit('CANVAS_STATE_CHANGED');
+        }
+    };
+    canvasWrapper.addEventListener('mouseup', stopPan);
+    canvasWrapper.addEventListener('mouseleave', stopPan);
 });
