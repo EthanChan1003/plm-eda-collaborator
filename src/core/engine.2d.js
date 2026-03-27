@@ -160,20 +160,22 @@ bus.on('TOOL_MODE_CHANGED', (mode) => {
 export function init2DEngine() {
     const canvasWrapper = document.getElementById('canvas-wrapper');
     const transformEl = document.getElementById('canvas-transform');
-    if (!canvasWrapper || !transformEl) {
-        console.warn('2D 引擎：找不到画布元素，初始化失败');
+    const view2dContainer = document.getElementById('view-2d-container'); // === 新增：获取 2D 视口外层容器 ===
+
+    if (!canvasWrapper || !transformEl || !view2dContainer) {
+        console.warn('2D 引擎：找不到画布或容器元素，初始化失败');
         return;
     }
 
-    // === 【核心修复】：锁死容器定位 ===
-    // 强制赋予相对定位，防止 absolute 子元素逃逸到全屏边界
-    canvasWrapper.style.position = 'relative';
-    canvasWrapper.style.overflow = 'hidden';
-    // ================================
+    // === 删除上次错误的锁死代码，恢复画布的自由度 ===
+    canvasWrapper.style.position = '';
+    canvasWrapper.style.overflow = '';
+
+    // === 确保 2D 外层视口具有相对定位，以此作为 UI 的边界 ===
+    view2dContainer.style.position = 'relative';
 
     // === 动态注入 2D 操作提示 (HUD) ===
     const hintOverlay = document.createElement('div');
-    // 使用与 3D 完全相同的 Tailwind 磨砂玻璃样式，固定在右下角
     hintOverlay.className = 'absolute bottom-4 right-4 z-50 pointer-events-none bg-gray-900/60 backdrop-blur-sm text-gray-200 text-[11px] px-3 py-2.5 rounded shadow-lg flex flex-col space-y-2 border border-white/10';
     hintOverlay.innerHTML = `
         <div class="flex items-center tracking-wider">
@@ -186,7 +188,8 @@ export function init2DEngine() {
             <i class="fas fa-search w-4 text-center mr-2 text-yellow-400"></i>滚轮滚动：缩放当前图纸视角
         </div>
     `;
-    canvasWrapper.appendChild(hintOverlay);
+    // === 【核心修复】：将提示框挂载到 view2dContainer 上 ===
+    view2dContainer.appendChild(hintOverlay);
     // ==========================================
 
     let isPanning = false;
