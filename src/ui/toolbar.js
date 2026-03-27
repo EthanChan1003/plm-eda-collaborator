@@ -152,5 +152,52 @@ export function initToolbar() {
     // 初始化默认工具模式 UI
     setToolModeUI(ToolMode.SELECT);
 
+    // ============ 缩放比例输入框控制 ============
+    const zoomInput = document.getElementById('zoom-input');
+
+    if (zoomInput) {
+        // 1. 被动更新：监听引擎发出的状态改变，实时更新输入框的数字
+        bus.on('CANVAS_STATE_CHANGED', (state) => {
+            if (state && typeof state.scale === 'number') {
+                const percentage = Math.round(state.scale * 100);
+                zoomInput.value = `${percentage}%`;
+            }
+        });
+
+        // 2. 主动控制：监听用户回车输入，下发精确缩放指令
+        zoomInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                let val = zoomInput.value.replace('%', '').trim();
+                let targetPercentage = parseFloat(val);
+
+                if (!isNaN(targetPercentage) && targetPercentage > 0) {
+                    // 限制缩放区间：10% 到 2000%
+                    targetPercentage = Math.max(10, Math.min(2000, targetPercentage));
+                    const targetScale = targetPercentage / 100;
+                    bus.emit('SET_ZOOM_SCALE', targetScale);
+
+                    // 补齐 UI 显示并取消光标聚焦
+                    zoomInput.value = `${targetPercentage}%`;
+                    zoomInput.blur();
+                } else {
+                    bus.emit('SHOW_TOAST', { message: '请输入有效的缩放比例', type: 'warning' });
+                }
+            }
+        });
+
+        // 3. 体验优化：失去焦点时自动补全百分号
+        zoomInput.addEventListener('blur', () => {
+            if (!zoomInput.value.endsWith('%')) {
+                zoomInput.value += '%';
+            }
+        });
+
+        // 4. 体验优化：点击输入框时自动全选文本，方便修改
+        zoomInput.addEventListener('click', () => {
+            zoomInput.select();
+        });
+    }
+
     console.log('工具栏模块初始化完成');
 }

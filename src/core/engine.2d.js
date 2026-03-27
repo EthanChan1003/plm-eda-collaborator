@@ -74,6 +74,7 @@ bus.on('ZOOM_IN', () => {
     zoom(1.2, undefined, undefined, wrapperEl, canvasState, (newState) => {
         updateCanvasState(newState);
         updateCanvasTransform(transformEl, canvasState);
+        bus.emit('CANVAS_STATE_CHANGED', canvasState);
     });
 });
 
@@ -85,6 +86,7 @@ bus.on('ZOOM_OUT', () => {
     zoom(0.8, undefined, undefined, wrapperEl, canvasState, (newState) => {
         updateCanvasState(newState);
         updateCanvasTransform(transformEl, canvasState);
+        bus.emit('CANVAS_STATE_CHANGED', canvasState);
     });
 });
 
@@ -94,6 +96,28 @@ bus.on('ZOOM_RESET', () => {
 
     updateCanvasState({ scale: 1, translateX: 0, translateY: 0 });
     updateCanvasTransform(transformEl, canvasState);
+    bus.emit('CANVAS_STATE_CHANGED', canvasState);
+});
+
+// 监听：精确设定缩放比例
+bus.on('SET_ZOOM_SCALE', (targetScale) => {
+    const transformEl = document.getElementById('canvas-transform');
+    const wrapperEl = document.getElementById('canvas-wrapper');
+    if (!transformEl || !wrapperEl) return;
+
+    // 以画布中心为基准进行平滑过渡
+    const rect = wrapperEl.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    const factor = targetScale / canvasState.scale;
+
+    // 复用引擎自带的 zoom 计算公式
+    zoom(factor, centerX, centerY, wrapperEl, canvasState, (newState) => {
+        updateCanvasState(newState);
+        updateCanvasTransform(transformEl, canvasState);
+        bus.emit('CANVAS_STATE_CHANGED', canvasState);
+    });
 });
 
 // 监听画布状态变化（平移后更新）
@@ -128,6 +152,7 @@ export function init2DEngine() {
         zoom(factor, e.clientX, e.clientY, canvasWrapper, canvasState, (newState) => {
             updateCanvasState(newState);
             updateCanvasTransform(transformEl, canvasState);
+            bus.emit('CANVAS_STATE_CHANGED', canvasState);
         });
     }, { passive: false });
 
