@@ -8,6 +8,9 @@ export function initPdfExporter(annotations) {
 }
 
 async function generatePDFReport(annotations) {
+    // 修复：annotations 可能是函数，需要调用获取最新数据
+    const currentAnnotations = typeof annotations === 'function' ? annotations() : annotations;
+
     const btnExportPdf = document.getElementById('btn-export-pdf');
     const originalBtnText = btnExportPdf.innerHTML;
     btnExportPdf.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>正在生成...';
@@ -31,7 +34,7 @@ async function generatePDFReport(annotations) {
         const imageData = canvas.toDataURL('image/jpeg', 0.95);
         snapshotImg.src = imageData;
 
-        const versionAnnotations = annotations.filter(a => a.version === AppState.currentVersion);
+        const versionAnnotations = currentAnnotations.filter(a => a.version === AppState.currentVersion);
         const totalCount = versionAnnotations.length;
         const openCount = versionAnnotations.filter(a => a.status === 'open').length;
         const resolvedCount = versionAnnotations.filter(a => a.status === 'resolved').length;
