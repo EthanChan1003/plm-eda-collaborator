@@ -117,15 +117,12 @@ function renderIdxPanel(container) {
                         </div>
                     ` : ''}
                     
-                    <!-- 操作按钮 -->
+                    <!-- 预览提示 -->
                     ${tx.status === 'pending' ? `
                         <div class="flex items-center justify-end space-x-2 mt-3 pt-2 border-t border-gray-100">
-                            <button class="idx-reject-btn px-3 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors" data-idx-id="${tx.id}">
-                                <i class="fas fa-times mr-1"></i>拒绝
-                            </button>
-                            <button class="idx-accept-btn px-3 py-1 text-xs text-white bg-green-500 hover:bg-green-600 rounded transition-colors" data-idx-id="${tx.id}">
-                                <i class="fas fa-check mr-1"></i>接受
-                            </button>
+                            <span class="text-xs text-gray-500 font-medium flex items-center">
+                                <i class="fas fa-eye mr-1 text-blue-500"></i>点击上方变更项可预览位移
+                            </span>
                         </div>
                     ` : ''}
                 </div>
@@ -140,103 +137,65 @@ function renderIdxPanel(container) {
     bindIdxEvents(container);
 }
 
+let previewStates = {}; // 记录器件的预览状态
+
 function bindIdxEvents(container) {
-    // 详情项悬浮/点击：定位元器件
+    // 详情项悬浮/点击：定位并预览元器件
     container.querySelectorAll('.detail-item').forEach(item => {
         const ref = item.getAttribute('data-ref');
+        const idx = item.getAttribute('data-idx');
+        const txId = item.closest('.idx-item').getAttribute('data-idx-id');
 
         item.addEventListener('mouseenter', () => {
-            if (typeof window.highlightComponent === 'function') {
-                window.highlightComponent(ref);
-            }
+            if (typeof window.highlightComponent === 'function') window.highlightComponent(ref);
         });
 
         item.addEventListener('mouseleave', () => {
-            if (typeof window.clearHighlight === 'function') {
-                window.clearHighlight();
-            }
+            if (typeof window.clearHighlight === 'function') window.clearHighlight();
         });
 
+        // 点击切换预览状态
         item.addEventListener('click', () => {
-            if (typeof window.selectComponent === 'function') {
-                window.selectComponent(ref);
+            const tx = transactions.find(t => t.id === txId);
+            if (!tx || tx.status !== 'pending') {
+                bus.emit('SHOW_TOAST', { message: '该协同记录已固化，仅支持高亮定位', type: 'info' });
+                return;
             }
+
+            const detail = tx.details[idx];
+            const isPreviewing = !previewStates[ref];
+            previewStates[ref] = isPreviewing;
+
+            // UI 状态反馈
+            if (isPreviewing) {
+                item.classList.add('bg-blue-100', 'border-blue-300');
+                item.classList.remove('bg-gray-50');
+            } else {
+                item.classList.remove('bg-blue-100', 'border-blue-300');
+                item.classList.add('bg-gray-50');
+            }
+
+            // 计算位移偏差
+            const dx = detail.newPos.x - detail.oldPos.x;
+            const dy = detail.newPos.y - detail.oldPos.y;
+
+            // 1. 驱动 2D 引擎产生残影预览
+            document.querySelectorAll(`.eda-component[data-ref="${ref}"]`).forEach(comp => {
+                if (isPreviewing) {
+                    comp.style.transform = `translate(${dx}px, ${dy}px)`;
+                    comp.style.opacity = '0.5';
+                    comp.style.filter = 'drop-shadow(0 0 6px rgba(245, 158, 11, 0.8))'; // 琥珀色发光
+                } else {
+                    comp.style.transform = '';
+                    comp.style.opacity = '1';
+                    comp.style.filter = '';
+                }
+            });
+
+            // 2. 驱动 3D 引擎产生残影预览
+            bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx, dy, isPreviewing });
         });
     });
-
-    // 接受按钮
-    container.querySelectorAll('.idx-accept-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const idxId = btn.getAttribute('data-idx-id');
-            handleAccept(idxId);
-        });
-    });
-
-    // 拒绝按钮
-    container.querySelectorAll('.idx-reject-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const idxId = btn.getAttribute('data-idx-id');
-            handleReject(idxId);
-        });
-    });
-}
-
-function handleAccept(idxId) {
-    const tx = transactions.find(t => t.id === idxId);
-    if (!tx || tx.status !== 'pending') return;
-
-    // 更新状态
-    tx.status = 'accepted';
-
-    // 执行实际的器件位置移动
-    tx.details.forEach(detail => {
-        bus.emit('COMPONENT_MOVE', {
-            ref: detail.targetRef,
-            oldPos: detail.oldPos,
-            newPos: detail.newPos,
-            source: 'IDX'
-        });
-    });
-
-    // 触发全局 Toast 提示
-    bus.emit('SHOW_TOAST', {
-        message: `已接受 ${tx.sender} 的协同建议 (${tx.details.length} 处变更)`,
-        type: 'success'
-    });
-
-    // 重新渲染
-    const tabContent = document.getElementById('tab-content');
-    if (tabContent && currentTab === 'collab') {
-        renderIdxPanel(tabContent);
-    }
-
-    // 通知其他模块更新
-    bus.emit('IDX_TRANSACTION_UPDATED', tx);
-}
-
-function handleReject(idxId) {
-    const tx = transactions.find(t => t.id === idxId);
-    if (!tx || tx.status !== 'pending') return;
-
-    // 更新状态
-    tx.status = 'rejected';
-
-    // 触发全局 Toast 提示
-    bus.emit('SHOW_TOAST', {
-        message: `已拒绝 ${tx.sender} 的协同建议`,
-        type: 'warning'
-    });
-
-    // 重新渲染
-    const tabContent = document.getElementById('tab-content');
-    if (tabContent && currentTab === 'collab') {
-        renderIdxPanel(tabContent);
-    }
-
-    // 通知其他模块更新
-    bus.emit('IDX_TRANSACTION_UPDATED', tx);
 }
 
 function getTypeConfig(type) {

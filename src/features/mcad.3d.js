@@ -311,12 +311,12 @@ function createTraces() {
 
 export function toggleThreeSplitView(toolSplitView, view2dContainer, view3dContainer) {
     AppState.isSplitViewActive = !AppState.isSplitViewActive;
-    
+
     if (AppState.isSplitViewActive) {
         toolSplitView.classList.add('bg-blue-50', 'text-blue-600');
         view2dContainer.style.flex = '0 0 50%';
         view3dContainer.style.width = '50%';
-        
+
         if (!isThreeInitialized) {
             initThreeEngine(view3dContainer);
         }
@@ -326,3 +326,35 @@ export function toggleThreeSplitView(toolSplitView, view2dContainer, view3dConta
         view3dContainer.style.width = '0';
     }
 }
+
+// 监听：IDX 变更的 3D 实体预览
+bus.on('TOGGLE_IDX_PREVIEW_3D', ({ ref, dx, dy, isPreviewing }) => {
+    if (!scene) return;
+    const target = scene.children.find(child => child.userData && child.userData.ref === ref);
+
+    if (target) {
+        if (isPreviewing) {
+            // 保存原始状态
+            if (!target.userData.origPos) target.userData.origPos = target.position.clone();
+            if (!target.userData.origEmissive) target.userData.origEmissive = target.material.emissive.clone();
+
+            // 3D 坐标系映射：Y 轴与 2D SVG 相反
+            target.position.set(
+                target.userData.origPos.x + dx,
+                target.userData.origPos.y - dy,
+                target.userData.origPos.z
+            );
+
+            // 设置半透明与发光材质表示这只是个"提议 (Ghost)"
+            target.material.transparent = true;
+            target.material.opacity = 0.6;
+            target.material.emissive = new THREE.Color('#d97706'); // 琥珀色发光
+        } else {
+            // 恢复原始状态
+            if (target.userData.origPos) target.position.copy(target.userData.origPos);
+            if (target.userData.origEmissive) target.material.emissive.copy(target.userData.origEmissive);
+            target.material.transparent = false;
+            target.material.opacity = 1;
+        }
+    }
+});
