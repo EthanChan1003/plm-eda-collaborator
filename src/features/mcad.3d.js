@@ -325,6 +325,12 @@ export function toggleThreeSplitView(toolSplitView, view2dContainer, view3dConta
         view2dContainer.style.flex = '1';
         view3dContainer.style.width = '0';
     }
+
+    // === 新增：监听容器的 CSS 过渡动画结束 (300ms) 后，自动触发自适应屏幕 ===
+    setTimeout(() => {
+        bus.emit('ZOOM_RESET');
+    }, 310); // 稍微多给 10ms，确保浏览器重绘完成
+    // =================================================================
 }
 
 // 监听：IDX 变更的 3D 实体预览
