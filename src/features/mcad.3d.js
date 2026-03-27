@@ -129,6 +129,51 @@ export function initThreeEngine(container) {
         isUpdatingFrom2D = false;
     });
 
+    // === 3D 交叉探测 (Cross-Probing) 高亮状态管理 ===
+    let currentlySelected3DRef = null;
+
+    function clear3DHighlight() {
+        if (currentlySelected3DRef && scene) {
+            const prevTarget = scene.children.find(child => child.userData && child.userData.ref === currentlySelected3DRef);
+            if (prevTarget) {
+                // 恢复器件原始的自发光材质（例如 LED D1 有红光，其他为黑）
+                if (prevTarget.userData.origEmissive) {
+                    prevTarget.material.emissive.copy(prevTarget.userData.origEmissive);
+                } else {
+                    prevTarget.material.emissive.setHex(0x000000);
+                }
+            }
+            currentlySelected3DRef = null;
+        }
+    }
+
+    // 监听 2D/UI 发出的选中器件事件
+    bus.on('COMPONENT_SELECTED', (ref) => {
+        if (!scene || !AppState.isSplitViewActive) return;
+
+        // 1. 清除上一个器件的高亮状态
+        clear3DHighlight();
+
+        // 2. 查找目标 3D 实体
+        const target = scene.children.find(child => child.userData && child.userData.ref === ref);
+        if (target) {
+            // 首次高亮前，缓存器件本来的颜色属性
+            if (!target.userData.origEmissive) {
+                target.userData.origEmissive = target.material.emissive.clone();
+            }
+
+            // 赋予明亮的蓝色自发光，模拟"被选中"的科技高亮感
+            target.material.emissive = new THREE.Color('#3b82f6');
+            currentlySelected3DRef = ref;
+        }
+    });
+
+    // 监听取消选中的全局事件
+    bus.on('CLEAR_SELECTION', () => {
+        clear3DHighlight();
+    });
+    // ===============================================
+
     // 6. 绘制 PCB 物理基板
     createPcbBoard();
     
