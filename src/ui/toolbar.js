@@ -1,5 +1,6 @@
 // ============ V4.0 工具栏模块 - 顶部工具按钮管理 ============
 import { bus } from '../core/event.bus.js';
+import { AppState } from '../core/state.js';
 import * as Mcad3D from '../features/mcad.3d.js';
 
 const ToolMode = {
@@ -66,13 +67,18 @@ export function initToolbar() {
 
     // 监听视图切换，同步工具栏 UI（控制 3D 分屏按钮显隐）
     bus.on('VIEW_CHANGED', (viewType) => {
+        const toolSplitView = document.getElementById('tool-split-view');
         if (toolSplitView) {
             // 仅在 PCB 模式下显示 3D 分屏按钮
-            if (viewType === 'pcb') {
-                toolSplitView.classList.remove('hidden');
-            } else {
-                toolSplitView.classList.add('hidden');
-            }
+            toolSplitView.classList.toggle('hidden', viewType !== 'pcb');
+        }
+    });
+
+    // 监听版本切换：控制批注按钮的禁用状态（修复 updateAnnotationPermissions 报错）
+    bus.on('VERSION_CHANGED', (version) => {
+        const toolRect = document.getElementById('tool-rect');
+        if (toolRect) {
+            toolRect.disabled = version !== AppState.latestVersion;
         }
     });
 

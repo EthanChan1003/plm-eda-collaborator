@@ -43,70 +43,11 @@ function calculateVersionDiff(currentVersion, compareVersion) {
 // 依赖：config.data.js 和 core.engine.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    const tabTitle = document.getElementById('tab-title');
-    const tabContent = document.getElementById('tab-content');
-    
-    const panelTopSearch = document.getElementById('panel-top-search');
-    const panelTopDiff = document.getElementById('panel-top-diff');
-    const panelBottomNotes = document.getElementById('panel-bottom-notes');
-
-    const canvasContainer = document.getElementById('canvas-container');
-    const canvasWrapper = document.getElementById('canvas-wrapper');
-    const canvasTransform = document.getElementById('canvas-transform');
-    const canvasSchematic = document.getElementById('canvas-schematic');
-    const canvasPcb = document.getElementById('canvas-pcb');
-
-    const btnSchematic = document.getElementById('btn-schematic');
-    const btnPcb = document.getElementById('btn-pcb');
-
-    const popover = document.getElementById('comp-property-popover');
-    const popoverClose = document.getElementById('popover-close');
-
-    const searchInput = document.getElementById('search-input');
-    const searchDropdown = document.getElementById('search-dropdown');
-
-    // 2D/3D 分屏容器 (供视图切换使用)
-    const view2dContainer = document.getElementById('view-2d-container');
-    const view3dContainer = document.getElementById('view-3d-container');
-
-    // 工具栏按钮已迁移至 src/ui/toolbar.js
-
-    // 全局版本选择器
+    // DOM 元素 - 仅保留版本选择器相关
     const globalVersionSelect = document.getElementById('global-version-select');
     const versionCompareSelect = document.getElementById('version-compare');
 
-    // 气泡元素
-    const annotationBubble = document.getElementById('annotation-bubble');
-    const bubbleContent = document.getElementById('bubble-content');
-    const closeBubbleBtn = document.getElementById('close-bubble');
-
-    // ============ 新增：PCB 图层状态机 ============
-    let pcbLayerState = {
-        top: true,
-        bottom: true,
-        silkscreen: true
-    };
-
-    // 暴露到全局，以便重新渲染 UI 时调用
-    window.togglePcbLayer = function(layerName, isVisible) {
-        pcbLayerState[layerName] = isVisible;
-        const group = document.getElementById(`pcb-layer-${layerName}`);
-        if (group) {
-            // 使用 opacity 保证过渡平滑，pointerEvents 防止隐藏层遮挡点击
-            group.style.opacity = isVisible ? '1' : '0';
-            group.style.pointerEvents = isVisible ? 'auto' : 'none';
-        }
-    };
-
-    // ============ 批注权限控制 ============
-    function updateAnnotationPermissions() {
-        const isLatest = AppState.currentVersion === AppState.latestVersion;
-        // 禁用/启用批注按钮
-        if (toolRect) {
-            toolRect.disabled = !isLatest;
-        }
-    }
+    // 布局管理功能已迁移至 src/ui/layout.manager.js
 
     // ============ 全局版本切换 ============
     function switchGlobalVersion(newVersion) {
@@ -122,16 +63,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 3. 根据当前激活的页签，通知 Sidebar 刷新对应内容
         bus.emit('TAB_CHANGED', currentTab);
-        
+
         // Diff 页签需要额外处理高亮
         if (currentTab === 'diff') {
             applyDiffHighlight();
         }
 
-        // 4. 更新权限
-        updateAnnotationPermissions();
-
-        // 5. 更新对比版本下拉框选项（排除当前版本）
+        // 4. 更新对比版本下拉框选项（排除当前版本）
         updateCompareVersionOptions();
     }
 
@@ -238,122 +176,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 批注功能已迁移至 src/features/annotation.manager.js ============
 
-    // 切换到原理图视图
-    function switchToSchematic() {
-        currentDrawingType = 'schematic';
-        if (btnSchematic) {
-            btnSchematic.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
-            btnSchematic.classList.remove('text-gray-500');
-        }
-        if (btnPcb) {
-            btnPcb.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
-            btnPcb.classList.add('text-gray-500');
-        }
-        if (canvasSchematic) canvasSchematic.classList.remove('hidden');
-        if (canvasPcb) canvasPcb.classList.add('hidden');
-        // 通知 Sidebar 刷新
-        bus.emit('VIEW_CHANGED', 'schematic');
-        bus.emit('TAB_CHANGED', currentTab);
-
-        // 隐藏分屏按钮，原理图不支持 3D 视图
-        if (toolSplitView) toolSplitView.classList.add('hidden');
-    }
-
-    // 切换到PCB视图
-    function switchToPcb() {
-        currentDrawingType = 'pcb';
-        if (btnPcb) {
-            btnPcb.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
-            btnPcb.classList.remove('text-gray-500');
-        }
-        if (btnSchematic) {
-            btnSchematic.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-medium');
-            btnSchematic.classList.add('text-gray-500');
-        }
-        if (canvasSchematic) canvasSchematic.classList.add('hidden');
-        if (canvasPcb) canvasPcb.classList.remove('hidden');
-        // 通知 Sidebar 刷新
-        bus.emit('VIEW_CHANGED', 'pcb');
-        bus.emit('TAB_CHANGED', currentTab);
-
-        // 显示分屏按钮，PCB 视图支持 3D 协同
-        if (toolSplitView) toolSplitView.classList.remove('hidden');
-    }
-
     // ============ 选择器与属性卡片功能已迁移至 src/features/selection.manager.js ============
 
     // ============ 搜索功能已迁移至 src/features/search.manager.js ============
-    // ============ 画布交互已迁移至 src/features/selection.manager.js ============
 
-    // generateTreeItem 已迁移至 src/ui/sidebar.js
-    bus.emit('VIEW_CHANGED', currentDrawingType);
-    bus.emit('TAB_CHANGED', currentTab);
+    // ============ 布局管理功能已迁移至 src/ui/layout.manager.js ============
 
-    // ============ Tab 切换逻辑 ============
-    tabButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tabKey = btn.getAttribute('data-tab');
-            AppState.currentTab = tabKey;
-            currentTab = tabKey;
-            
-            const config = {
-                'tree': { title: '结构树', showSearch: true, showDiff: false, showBottom: false },
-                'diff': { title: '版本差异', showSearch: true, showDiff: true, showBottom: false },
-                'collab': { title: '协同记录', showSearch: false, showDiff: false, showBottom: false },
-                'notes': { title: '批注列表', showSearch: true, showDiff: false, showBottom: true }
-            }[tabKey];
-
-            // 更新搜索框占位符
-            const searchInput = document.getElementById('search-input');
-            if (tabKey === 'tree') {
-                searchInput.placeholder = '搜索位号 / 网络名...';
-            } else if (tabKey === 'diff') {
-                searchInput.placeholder = '搜索位号 / 差异描述...';
-            } else if (tabKey === 'notes') {
-                searchInput.placeholder = '搜索批注内容...';
-            }
-
-            tabButtons.forEach(b => {
-                b.classList.remove('text-blue-600', 'bg-blue-50');
-                b.classList.add('text-gray-400');
-            });
-            btn.classList.add('text-blue-600', 'bg-blue-50');
-            btn.classList.remove('text-gray-400');
-
-            tabTitle.innerText = config.title;
-            
-            // 【核心修复】只发事件，不干活，让 sidebar 去渲染
-            bus.emit('TAB_CHANGED', tabKey);
-            
-            // 同步 Diff 高亮状态
-            if (tabKey === 'diff') {
-                applyDiffHighlight();
-            } else {
-                clearDiffHighlight();
-            }
-
-            panelTopSearch.classList.toggle('hidden', !config.showSearch);
-            panelTopDiff.classList.toggle('hidden', !config.showDiff);
-            panelBottomNotes.classList.toggle('hidden', !config.showBottom);
-        });
-    });
-
-    if (btnSchematic) btnSchematic.addEventListener('click', switchToSchematic);
-    if (btnPcb) btnPcb.addEventListener('click', switchToPcb);
-
-    // ============ 版本选择框联动 ============
-    // 仅依赖 versionCompareSelect，与当前全局版本对比
-    if (versionCompareSelect) {
-        versionCompareSelect.addEventListener('change', () => {
-            const compareVersion = versionCompareSelect.value;
-            calculateVersionDiff(AppState.currentVersion, compareVersion);
-            bus.emit('TAB_CHANGED', 'diff');
-            applyDiffHighlight();
-        });
-    }
-
-    // 预置批注已由 annotation.manager.js 初始化
-    // 初始渲染由 Sidebar 模块通过事件监听处理
+    // 初始事件触发
     bus.emit('VIEW_CHANGED', currentDrawingType);
     bus.emit('TAB_CHANGED', currentTab);
 
