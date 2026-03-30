@@ -51,6 +51,18 @@ export function initAnnotationManager() {
         executeLocate(id, version);
     });
 
+    // === 新增：监听全局批注显隐信号 ===
+    bus.on('TOGGLE_ANNOTATIONS_VISIBILITY', (isVisible) => {
+        document.querySelectorAll('.annotations-container').forEach(container => {
+            container.style.display = isVisible ? '' : 'none';
+        });
+        
+        // 如果隐藏了批注，同时隐藏正在展示的弹窗气泡
+        if (!isVisible) {
+            hideAnnotationBubble();
+        }
+    });
+
     // 监听视图切换
     bus.on('VIEW_CHANGED', (viewType) => {
         currentDrawingType = viewType;
@@ -72,6 +84,35 @@ export function initAnnotationManager() {
             currentAnnotationBox.remove();
             currentAnnotationBox = null;
             isDrawing = false;
+        }
+    });
+
+    // === 核心联动：监听 IDX 固化信号，级联关闭关联的批注 ===
+    bus.on('CASCADE_RESOLVE_ANNOTATIONS', (linkedTxId) => {
+        let resolvedCount = 0;
+        
+        // 遍历所有数据，将挂载在该 IDX 提议下的 Open 批注全部设为 Resolved
+        annotations.forEach(annotation => {
+            if (annotation.linkedIdxId === linkedTxId && annotation.status === 'open') {
+                annotation.status = 'resolved';
+                resolvedCount++;
+                
+                // 可选：在批注历史中追加一条系统日志
+                if (!annotation.replies) annotation.replies = [];
+                annotation.replies.push({
+                    author: '系统 (System)',
+                    text: '关联的 IDX 提议已被本地 ECAD 同步固化，此讨论自动关闭。',
+                    time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                });
+            }
+        });
+
+        if (resolvedCount > 0) {
+            console.log(`[联动触发] 已自动关闭 ${resolvedCount} 条关联批注`);
+            // 1. 重新渲染画布上的批注图标（红色图钉会变成灰色圆角状态）
+            renderPresetAnnotations();
+            // 2. 如果批注侧边栏处于打开状态，广播信号让其刷新列表
+            bus.emit('ANNOTATIONS_UPDATED', annotations);
         }
     });
 
@@ -469,12 +510,20 @@ function renderPresetAnnotations() {
                     <path d="M12 0C5.37 0 0 5.37 0 12c0 8.84 10.4 19.17 11.13 19.89.47.47 1.25.47 1.73 0C13.6 31.17 24 20.84 24 12c0-6.63-5.37-12-12-12zm0 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12z" fill="currentColor"/>
                 </svg>
             `;
+            
+            // === 关键修复：使用正确的图钉尺寸 ===
+            annotationBox.style.width = PIN_W + 'px';
+            annotationBox.style.height = PIN_H + 'px';
+            // 正确的定位：让图钉针尖对齐到指定的中心点
+            annotationBox.style.left = (annotation.centerX - PIN_W/2) + 'px';
+            annotationBox.style.top = (annotation.centerY - PIN_H/2 - PIN_TIP_Y_OFFSET) + 'px';
+        } else {
+            // 非图钉形状使用原来的尺寸
+            annotationBox.style.left = (annotation.centerX - 40) + 'px';
+            annotationBox.style.top = (annotation.centerY - 30) + 'px';
+            annotationBox.style.width = '80px';
+            annotationBox.style.height = '60px';
         }
-
-        annotationBox.style.left = (annotation.centerX - 40) + 'px';
-        annotationBox.style.top = (annotation.centerY - 30) + 'px';
-        annotationBox.style.width = '80px';
-        annotationBox.style.height = '60px';
 
         if (annotation.version !== AppState.currentVersion) {
             annotationBox.style.display = 'none';
@@ -502,6 +551,9 @@ function executeLocate(annotationId, version) {
     const targetVersion = version || AppState.currentVersion;
     const annotation = annotations.find(a => a.id === annotationId && a.version === targetVersion);
     if (!annotation) return;
+
+    // === 核心防呆：如果是从侧边栏等外部发起的定位，必须强制开启批注显示 ===
+    bus.emit('FORCE_ANNOTATIONS_VISIBLE');
 
     // 发送视图切换请求
     if (annotation.viewType !== currentDrawingType) {

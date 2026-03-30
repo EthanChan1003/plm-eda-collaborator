@@ -149,6 +149,11 @@
                 <button id="tool-split-view" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors hidden" title="2D/3D 机电协同分屏">
                     <i class="fas fa-cube text-sm"></i>
                 </button>
+                
+                <button id="tool-toggle-annotations" class="w-10 h-10 rounded flex items-center justify-center text-blue-600 bg-blue-50 transition-colors" title="显示/隐藏所有批注">
+                    <i class="fas fa-eye text-sm"></i>
+                </button>
+                
                 <div class="relative" id="annotation-group">
                     <button id="annotation-main-btn" class="w-10 h-10 rounded flex items-center justify-center text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-all" title="批注工具">
                         <i class="fas fa-pen-nib text-sm"></i>
@@ -249,6 +254,19 @@
                                 <line x1="60" y1="135" x2="80" y2="135" stroke="#1f2937" stroke-width="1.5" />
                                 <line x1="60" y1="165" x2="80" y2="165" stroke="#1f2937" stroke-width="1.5" />
                                 <line x1="160" y1="150" x2="180" y2="150" stroke="#1f2937" stroke-width="1.5" />
+                            </g>
+
+                            <!-- ========== U3 PMIC ========== -->
+                            <g class="eda-component cursor-pointer" data-ref="U3" data-type="IC">
+                                <rect x="280" y="130" width="40" height="40" fill="white" stroke="#1f2937" stroke-width="2" />
+                                <text x="300" y="154" font-size="12" font-weight="bold" text-anchor="middle" fill="#1f2937">U3</text>
+                                <text x="300" y="125" font-size="9" text-anchor="middle" fill="#6b7280">PMIC</text>
+                                <line x1="270" y1="140" x2="280" y2="140" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="270" y1="160" x2="280" y2="160" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="320" y1="140" x2="330" y2="140" stroke="#1f2937" stroke-width="1.5" />
+                                <line x1="320" y1="160" x2="330" y2="160" stroke="#1f2937" stroke-width="1.5" />
+                                <text x="283" y="143" font-size="6" fill="#6b7280">IN</text>
+                                <text x="283" y="163" font-size="6" fill="#6b7280">GND</text>
                             </g>
 
                             <!-- ========== Y1 晶振 ========== -->
@@ -403,6 +421,13 @@
                             <!-- VCC 到 J1 -->
                             <path class="eda-wire" d="M 95 600 L 95 580 L 95 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
 
+                            <!-- VCC 到 U3 -->
+                            <path class="eda-wire" d="M 270 140 L 220 140 L 220 50" stroke="#dc2626" stroke-width="1.5" fill="none" />
+                            <circle cx="220" cy="50" r="3" fill="#dc2626" />
+                            
+                            <!-- GND 到 U3 -->
+                            <path class="eda-wire" d="M 270 160 L 220 160 L 220 350" stroke="#16a34a" stroke-width="1.5" fill="none" opacity="0.6" />
+
                             <!-- GND 网络 -->
                             <!-- GND 到 C1 -->
                             <path class="eda-wire" d="M 255 315 L 255 760" stroke="#16a34a" stroke-width="1.5" fill="none" />
@@ -520,6 +545,21 @@
                                     <rect x="90" y="145" width="10" height="6" fill="#fbbf24" rx="1" />
                                     <rect x="90" y="169" width="10" height="6" fill="#fbbf24" rx="1" />
                                     <rect x="150" y="157" width="10" height="6" fill="#fbbf24" rx="1" />
+                                </g>
+
+                                <!-- ========== U3 PMIC ========== -->
+                                <g class="eda-component cursor-pointer" data-ref="U3" data-type="Footprint">
+                                    <rect x="276" y="126" width="48" height="48" fill="none" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="2,2" />
+                                    <circle cx="282" cy="132" r="2" fill="#e2e8f0" />
+                                    <rect x="280" y="130" width="40" height="40" fill="#334155" stroke="#1e293b" stroke-width="1" rx="2" />
+                                    <text x="300" y="154" font-size="11" font-weight="bold" text-anchor="middle" fill="#f8fafc">U3</text>
+                                    
+                                    <rect x="278" y="136" width="6" height="3" fill="#fbbf24" rx="0.5" />
+                                    <rect x="278" y="146" width="6" height="3" fill="#fbbf24" rx="0.5" />
+                                    <rect x="278" y="156" width="6" height="3" fill="#fbbf24" rx="0.5" />
+                                    <rect x="316" y="136" width="6" height="3" fill="#fbbf24" rx="0.5" />
+                                    <rect x="316" y="146" width="6" height="3" fill="#fbbf24" rx="0.5" />
+                                    <rect x="316" y="156" width="6" height="3" fill="#fbbf24" rx="0.5" />
                                 </g>
 
                                 <!-- ========== Y1 晶振 HC-49S ========== -->
@@ -643,6 +683,12 @@
                                 <!-- LED 驱动线 -->
                                 <path d="M 520 340 L 600 340 L 600 316 L 750 316" stroke="#f59e0b" stroke-width="2" fill="none" opacity="0.9" />
                                 <path d="M 800 316 L 850 316" stroke="#f59e0b" stroke-width="2" fill="none" opacity="0.9" />
+
+                                <!-- VCC 到 U3 -->
+                                <path d="M 200 120 L 200 140 L 278 140" stroke="#ef4444" stroke-width="2" fill="none" opacity="0.9" />
+                                
+                                <!-- GND 到 U3 -->
+                                <path d="M 278 157 L 230 157 L 230 365" stroke="#16a34a" stroke-width="1.5" fill="none" opacity="0.8" />
                             </g>
 
                             <!-- ========== Bottom Layer 走线 (蓝色虚线) ========== -->

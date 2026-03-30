@@ -22,7 +22,37 @@ export function initToolbar() {
     const toolZoomOut = document.getElementById('tool-zoom-out');
     const toolReset = document.getElementById('tool-reset');
     const toolSplitView = document.getElementById('tool-split-view');
+    const toolToggleAnnotations = document.getElementById('tool-toggle-annotations');
     const canvasWrapper = document.getElementById('canvas-wrapper');
+
+    let isAnnotationsVisible = true; // 默认可见
+
+    // === 新增：全局批注显隐开关逻辑 ===
+    if (toolToggleAnnotations) {
+        toolToggleAnnotations.addEventListener('click', () => {
+            isAnnotationsVisible = !isAnnotationsVisible;
+            const icon = toolToggleAnnotations.querySelector('i');
+            
+            if (isAnnotationsVisible) {
+                icon.className = 'fas fa-eye text-sm';
+                toolToggleAnnotations.classList.add('text-blue-600', 'bg-blue-50');
+                toolToggleAnnotations.classList.remove('text-gray-500', 'hover:bg-gray-50');
+            } else {
+                icon.className = 'fas fa-eye-slash text-sm';
+                toolToggleAnnotations.classList.remove('text-blue-600', 'bg-blue-50');
+                toolToggleAnnotations.classList.add('text-gray-500', 'hover:bg-gray-50');
+            }
+            // 向全局广播显隐状态
+            bus.emit('TOGGLE_ANNOTATIONS_VISIBILITY', isAnnotationsVisible);
+        });
+    }
+
+    // 监听外部强制打开请求（用于防呆设计）
+    bus.on('FORCE_ANNOTATIONS_VISIBLE', () => {
+        if (!isAnnotationsVisible && toolToggleAnnotations) {
+            toolToggleAnnotations.click(); // 模拟点击恢复开启
+        }
+    });
 
     const annotationMainBtn = document.getElementById('annotation-main-btn');
     const annotationSubMenu = document.getElementById('annotation-sub-menu');
@@ -69,6 +99,10 @@ export function initToolbar() {
     // 监听工具模式变化事件
     bus.on('TOOL_MODE_CHANGED', (mode) => {
         setToolModeUI(mode);
+        // === 核心防呆：一旦用户选择要开始画批注，强制打开批注显示 ===
+        if (mode === ToolMode.ANNOTATE) {
+            bus.emit('FORCE_ANNOTATIONS_VISIBLE');
+        }
     });
 
     // 监听视图切换，同步工具栏 UI（控制 3D 分屏按钮显隐）

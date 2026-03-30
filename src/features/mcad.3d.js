@@ -229,6 +229,34 @@ export function initThreeEngine(container) {
         });
     });
 
+    // === 新增：监听预览状态清理事件 ===
+    bus.on('CLEANUP_ALL_PREVIEWS', () => {
+        console.log("3D 引擎接收到 CLEANUP_ALL_PREVIEWS 信号");
+        
+        if (!scene) return;
+
+        // 清理所有预览状态（琥珀色发光）
+        scene.traverse((object) => {
+            if (object.isMesh && object.userData && object.userData.ref) {
+                if (object.material && object.material.emissive) {
+                    // 恢复原始发光颜色
+                    if (object.userData.origEmissive) {
+                        object.material.emissive.copy(object.userData.origEmissive);
+                    } else {
+                        object.material.emissive.setHex(0x000000);
+                    }
+                    
+                    // 恢复不透明度
+                    object.material.transparent = false;
+                    object.material.opacity = 1;
+                    
+                    // 清理临时状态
+                    delete object.userData.origPos;
+                }
+            }
+        });
+    });
+
     // === 监听图层显隐事件 ===
     bus.on('PCB_LAYER_TOGGLED', ({ layerName, isVisible }) => {
         if (pcbLayers3D[layerName]) {
@@ -240,6 +268,41 @@ export function initThreeEngine(container) {
     // === 监听版本切换事件，实现 3D 视图同步 ===
     bus.on('VERSION_CHANGED', (newVersion) => {
         sync3DComponentsByVersion(newVersion);
+    });
+
+    // === 新增：监听 LOCATE_COMPONENT 事件，实现 3D 器件定位 ===
+    bus.on('LOCATE_COMPONENT', ({ ref, targetX, targetY, scale }) => {
+        if (!AppState.isSplitViewActive || !camera || !controls) return;
+        
+        // 将 2D 坐标转换为 3D 坐标
+        const target3DX = (targetX - 500);
+        const target3DY = (400 - targetY);
+        
+        // 计算相机距离（基于缩放级别）
+        const containerHeight = renderer.domElement.clientHeight || 800;
+        const fovRadian = (camera.fov * Math.PI) / 180;
+        const targetScale = scale || 1.8;
+        const exactDist = containerHeight / (2 * targetScale * Math.tan(fovRadian / 2));
+        
+        // 设置新的目标点
+        controls.target.set(target3DX, target3DY, 0);
+        
+        // 重新定位相机
+        const defaultDir = new THREE.Vector3(0, -300, 1000).normalize();
+        camera.position.copy(controls.target).add(defaultDir.multiplyScalar(exactDist));
+        
+        controls.update();
+        
+        // 高亮目标器件
+        const targetMesh = findMesh(ref);
+        if (targetMesh && targetMesh.material) {
+            if (!targetMesh.userData.origEmissive) {
+                targetMesh.userData.origEmissive = targetMesh.material.emissive.clone();
+            }
+            targetMesh.material.emissive.setHex(0x3b82f6); // 蓝色高亮
+        }
+        
+        console.log(`3D: 已定位到器件 ${ref} 位置 (${target3DX}, ${target3DY})`);
     });
 
     // 在初始化末尾立即执行一次同步，确保初始视图正确
@@ -389,7 +452,9 @@ function createComponents() {
         { ref: 'R1', x: 620, y: 410, w: 30,  h: 12,  z: 6,  color: '#020617', layer: 'top' },
         { ref: 'R2', x: 620, y: 470, w: 30,  h: 12,  z: 6,  color: '#020617', layer: 'top' },
         { ref: 'R3', x: 760, y: 310, w: 30,  h: 12,  z: 6,  color: '#020617', layer: 'top' },
-        { ref: 'D1', x: 860, y: 310, w: 30,  h: 14,  z: 12, color: '#ef4444', layer: 'top' }
+        { ref: 'D1', x: 860, y: 310, w: 30,  h: 14,  z: 12, color: '#ef4444', layer: 'top' },
+        // === 新增：U3 芯片的三维物理定义 ===
+        { ref: 'U3', x: 300, y: 150, w: 40, h: 40, z: 12, color: '#1e293b', layer: 'top' }
     ];
 
     componentsData.forEach(comp => {
