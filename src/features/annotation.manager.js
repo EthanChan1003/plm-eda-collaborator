@@ -17,6 +17,18 @@ let isDrawing = false;
 let currentAnnotationBox = null;
 let drawStartX, drawStartY;
 let currentDrawingType = AppState.currentDrawingType || 'schematic';
+// === 新增：当前正在绘制的批注形状 ===
+let currentAnnotationShape = 'rect';
+
+// === 修改：图钉批注的物理定义 (已整体缩小) ===
+const PIN_W = 16; // 图钉 DOM 容器宽度 (从 24 缩小至 16)
+const PIN_H = 24; // 图钉 DOM 容器高度 (从 32 缩小至 24)
+// 图钉尖端（Tip）相对于 DOM 容器中心点的相对坐标，用于精确定位针尖指向点击处
+const PIN_TIP_X_OFFSET = 0;   // 中心对齐 (保持不变)
+const PIN_TIP_Y_OFFSET = 12;  // 针尖在 DOM 容器下方 12 单位处 (从 16 相应调整至 12，实现物理对齐)
+
+// 定义图钉的 Ghost 材质 (保持不变)
+const MAT_GHOST_PIN = new THREE.MeshPhongMaterial({ color: '#f59e0b', transparent: true, opacity: 0.5 });
 
 /**
  * 初始化批注管理器
@@ -48,6 +60,11 @@ export function initAnnotationManager() {
         }, 100);
     });
     
+    // === 新增：监听形状切换 ===
+    bus.on('ANNOTATION_SHAPE_CHANGED', (shape) => {
+        currentAnnotationShape = shape;
+    });
+
     // 监听工具模式变化
     bus.on('TOOL_MODE_CHANGED', (mode) => {
         // 如果不是批注模式，取消正在进行的绘制
@@ -104,6 +121,9 @@ function bindDrawingEvents() {
         if (canvasWrapper.dataset.toolMode !== 'ANNOTATE') return;
         if (e.target.closest('.annotation-box') || e.target.closest('.annotation-input-panel')) return;
 
+        // === 核心修复：阻止浏览器默认行为，彻底根除"禁止拖拽符号"和 mouseup 丢失问题 ===
+        e.preventDefault();
+
         isDrawing = true;
 
         const coords = getCanvasLocalCoordinates(e.clientX, e.clientY);
@@ -112,6 +132,12 @@ function bindDrawingEvents() {
 
         currentAnnotationBox = document.createElement('div');
         currentAnnotationBox.className = 'annotation-box';
+
+        // === 核心新增：如果是圆形模式，添加完全圆角的 CSS 类 ===
+        if (currentAnnotationShape === 'circle') {
+            currentAnnotationBox.classList.add('rounded-full');
+        }
+
         currentAnnotationBox.style.left = drawStartX + 'px';
         currentAnnotationBox.style.top = drawStartY + 'px';
         currentAnnotationBox.style.width = '0px';
@@ -143,21 +169,55 @@ function bindDrawingEvents() {
 
     canvasWrapper.addEventListener('mouseup', (e) => {
         if (!isDrawing || !currentAnnotationBox) return;
-        
-        isDrawing = false;
-        const boxWidth = parseInt(currentAnnotationBox.style.width);
-        const boxHeight = parseInt(currentAnnotationBox.style.height);
 
-        if (boxWidth < 20 || boxHeight < 20) {
+        // === 核心修复 1：直接从 DOM 读取最终绘制的宽高，防止计算报错中断流程 ===
+        const boxWidth = parseInt(currentAnnotationBox.style.width) || 0;
+        const boxHeight = parseInt(currentAnnotationBox.style.height) || 0;
+        
+        let isValid = false;
+        
+        if (currentAnnotationShape === 'pin') {
+            // == 场景 A: 图钉模式 ==
+            isValid = true; // 图钉模式无需拖拽，跳过 20px 的尺寸校验
+            
+            const finalW = PIN_W;
+            const finalH = PIN_H;
+            currentAnnotationBox.style.width = finalW + 'px';
+            currentAnnotationBox.style.height = finalH + 'px';
+            
+            // 调整定位：让图钉的"针尖"对齐到鼠标按下的起始点
+            currentAnnotationBox.style.left = (drawStartX - finalW/2) + 'px';
+            currentAnnotationBox.style.top = (drawStartY - (finalH/2 + PIN_TIP_Y_OFFSET)) + 'px';
+            
+            currentAnnotationBox.classList.add('annotation-pin');
+            currentAnnotationBox.style.border = 'none';
+            currentAnnotationBox.style.background = 'none';
+            currentAnnotationBox.innerHTML = `
+                <svg viewBox="0 0 24 32" class="w-full h-full text-red-600 transition-transform duration-150 hover:scale-110">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 8.84 10.4 19.17 11.13 19.89.47.47 1.25.47 1.73 0C13.6 31.17 24 20.84 24 12c0-6.63-5.37-12-12-12zm0 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12z" fill="currentColor"/>
+                </svg>
+            `;
+        } else {
+            // == 场景 B: 框选模式 (矩形/圆形) ==
+            // === 核心修复 2：严格校验，长和宽都必须大于 20px 才能生成框 ===
+            if (boxWidth >= 20 && boxHeight >= 20) {
+                isValid = true;
+            }
+        }
+        
+        // === 统一的生命周期处理，保证 DOM 不残留 ===
+        if (isValid) {
+            isDrawing = false;
+            // 弹出输入面板
+            showAnnotationInputPanel(currentAnnotationBox);
+            // 发送事件通知控制器
+            bus.emit('ANNOTATION_DRAWN');
+        } else {
+            // 校验失败（比如用户在框选模式下只是单纯点了一下没拖拽），彻底清理临时框
             currentAnnotationBox.remove();
             currentAnnotationBox = null;
-            return;
+            isDrawing = false;
         }
-
-        showAnnotationInputPanel(currentAnnotationBox);
-        
-        // 发送事件通知控制器退出批注模式
-        bus.emit('ANNOTATION_DRAWN');
     });
 }
 
@@ -197,12 +257,35 @@ function showAnnotationInputPanel(annotationBox) {
         panel.remove();
     });
 
+    // === 核心修复：引入带视觉反馈的必填性校验 ===
+    const textInput = panel.querySelector('#annotation-text');
+
     panel.querySelector('#annotation-save').addEventListener('click', () => {
-        const text = panel.querySelector('#annotation-text').value.trim();
+        const text = textInput.value.trim();
+
         if (text) {
+            // 校验通过：正常保存并关闭面板
             saveAnnotation(annotationBox, text);
+            panel.remove();
+        } else {
+            // 校验失败：拦截保存，输入框标红并聚焦
+            textInput.classList.remove('border-gray-200');
+            textInput.classList.add('border-red-500', 'ring-red-500');
+            textInput.placeholder = '评审意见不能为空！';
+            textInput.focus();
+
+            // 如果全局 Toast 存在，也可以在此处调用抛出提示 (可选)
+            if (window.showToast) {
+                window.showToast('请输入评审意见后再保存', 'warning');
+            }
         }
-        panel.remove();
+    });
+
+    // 体验优化：当用户重新开始输入时，自动清除红色警告样式
+    textInput.addEventListener('input', () => {
+        textInput.classList.remove('border-red-500', 'ring-red-500');
+        textInput.classList.add('border-gray-200');
+        textInput.placeholder = '请输入评审意见...';
     });
 }
 
@@ -241,7 +324,9 @@ function saveAnnotation(annotationBox, text) {
         centerX: boxLeft + boxWidth / 2,
         centerY: boxTop + boxHeight / 2,
         status: 'open',
-        version: AppState.currentVersion
+        version: AppState.currentVersion,
+        // === 新增：记录当前批注的形状 ===
+        shape: currentAnnotationShape
     };
     annotations.push(annotationData);
 
@@ -366,6 +451,26 @@ function renderPresetAnnotations() {
         if (annotation.status === 'resolved') {
             annotationBox.classList.add('annotation-resolved');
         }
+
+        // === 新增：如果是圆形历史数据，恢复其圆角外观 ===
+        if (annotation.shape === 'circle') {
+            annotationBox.classList.add('rounded-full');
+        }
+
+        // === 核心修复：如果是图钉数据，恢复其特殊外观，不要使用边框拉伸框样式 ===
+        if (annotation.shape === 'pin') {
+            annotationBox.classList.add('annotation-pin');
+            // 移除默认的边框和背景色
+            annotationBox.style.border = 'none';
+            annotationBox.style.background = 'none';
+            // 注入图钉图标 (这里使用 SVG 以获得更精准的定位和更好的视觉效果)
+            annotationBox.innerHTML = `
+                <svg viewBox="0 0 24 32" class="w-full h-full text-red-600">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 8.84 10.4 19.17 11.13 19.89.47.47 1.25.47 1.73 0C13.6 31.17 24 20.84 24 12c0-6.63-5.37-12-12-12zm0 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12z" fill="currentColor"/>
+                </svg>
+            `;
+        }
+
         annotationBox.style.left = (annotation.centerX - 40) + 'px';
         annotationBox.style.top = (annotation.centerY - 30) + 'px';
         annotationBox.style.width = '80px';
