@@ -71,14 +71,23 @@
 ## 🚀 快速启动
 得益于纯天然的 ES6 Module 架构，本项目零依赖构建，开箱即用：
 
-克隆本仓库到本地：
+1. **克隆项目**
 
-```bash
-git clone https://github.com/ethanchan1003/plm-eda-collaborator.git
-```
-推荐使用 Live Server（VS Code 插件）或任何本地静态服务器打开项目根目录。
+   ```Bash
+   git clone https://github.com/ethanchan1003/eda-collaborator.git
+   ```
 
-浏览器访问 index.html 即可体验。
+2. **启动本地服务器**
+
+   - 如果使用 VS Code，推荐安装 `Live Server` 插件，右键 `index.html` 点击 "Open with Live Server"。
+
+   - 或者使用 Python 自带服务器：
+
+     ```Bash
+     python -m http.server 8000
+     ```
+
+3. **访问引擎** 打开浏览器访问 `http://localhost:8000`，开始享受丝滑的机电协同体验。
 
 ## 🛠️ 技术栈
 核心逻辑：Vanilla JavaScript (ES6+), Event-Driven Architecture
@@ -90,6 +99,13 @@ UI 样式：Tailwind CSS
 图标库：FontAwesome
 
 文档导出：html2pdf.js, html2canvas
+
+## 🗺️ 演进路线图 (Roadmap)
+
+- [x] **V1.0 - V2.0**：完成基础的 SVG 2D 渲染、图层隔离与属性映射。
+- [x] **V3.0**：引入 Three.js，实现 3D 物理基板挤压映射与跨维联动。
+- [x] **V4.0**：ES6 模块化架构重构，引入 EventBus 实现解耦。
+- [ ] **V5.0 (In Progress)**：引入基于 **EDMD/IDX 协议**的增量设计协同时间轴，实现提议审查与预览。
 
 ## 🤝 参与贡献
 欢迎提交 Issue 探讨基于 Web 的工业软件架构设计，或提交 Pull Request 共同完善功能。
