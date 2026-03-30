@@ -512,10 +512,10 @@ export function toggleThreeSplitView(toolSplitView, view2dContainer, view3dConta
     // =================================================================
 }
 
-// 监听：IDX 变更的 3D 实体预览
+// === 核心修复：IDX 变更的 3D 实体预览，支持穿透图层组查找 ===
 bus.on('TOGGLE_IDX_PREVIEW_3D', ({ ref, dx, dy, isPreviewing }) => {
-    if (!scene) return;
-    const target = scene.children.find(child => child.userData && child.userData.ref === ref);
+    // 使用统一的 findMesh 穿透查找对应的 3D 元器件
+    const target = findMesh(ref);
 
     if (target) {
         if (isPreviewing) {

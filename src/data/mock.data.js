@@ -146,9 +146,9 @@ export const idxTransactions = [
             {
                 action: 'MOVE',
                 targetRef: 'J1',
-                desc: '外壳干涉，建议下移',
+                desc: '外壳干涉，建议上移避让',
                 oldPos: { x: 100, y: 600 },
-                newPos: { x: 100, y: 620 }
+                newPos: { x: 100, y: 570 }
             },
             {
                 action: 'MOVE',
