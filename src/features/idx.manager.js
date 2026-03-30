@@ -121,7 +121,7 @@ function renderIdxPanel(container) {
                     ${tx.status === 'pending' ? `
                         <div class="flex items-center justify-end space-x-2 mt-3 pt-2 border-t border-gray-100">
                             <span class="text-xs text-gray-500 font-medium flex items-center">
-                                <i class="fas fa-eye mr-1 text-blue-500"></i>点击上方变更项可预览位移
+                                <i class="fas fa-eye mr-1 text-blue-500"></i>点击上方变更项可预览
                             </span>
                         </div>
                     ` : ''}
