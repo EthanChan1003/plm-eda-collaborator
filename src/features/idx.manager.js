@@ -66,6 +66,155 @@ export function initIdxManager() {
         }
     });
 
+    // === 沙箱控制台事件监听：接受提议（完整闭环逻辑） ===
+    bus.on('MOCK_ECAD_SYNC_ACCEPTED', ({ targetRef, txId, detailId }) => {
+        console.log('[IDX] 收到接受提议事件:', { targetRef, txId, detailId });
+        
+        // ========== Step 1: 强制清理预览状态 ==========
+        if (previewStates[targetRef]) {
+            // 清理 2D CSS 变换
+            document.querySelectorAll(`.eda-component[data-ref="${targetRef}"]`).forEach(comp => {
+                comp.style.transform = '';
+                comp.style.opacity = '1';
+                comp.style.filter = '';
+            });
+            
+            // 通知 3D 引擎关闭残影模式
+            bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref: targetRef, dx: 0, dy: 0, isPreviewing: false });
+            
+            // 重置预览状态
+            previewStates[targetRef] = false;
+            console.log(`[IDX] 已清理 ${targetRef} 的预览状态`);
+        }
+        
+        // ========== Step 2: 物理挪移与数据持久化 ==========
+        const tx = transactions.find(t => t.id === txId);
+        let detail = null;
+        if (tx && tx.details) {
+            detail = tx.details.find(d => (d.id || `${txId}-${d.targetRef}`) === detailId);
+        }
+        
+        if (detail && detail.oldPos && detail.newPos) {
+            const dx = detail.newPos.x - detail.oldPos.x;
+            const dy = detail.newPos.y - detail.oldPos.y;
+            const dz = detail.newZ !== undefined ? (detail.newZ - detail.oldZ) : 0;
+            
+            // DOM 层：直接修改 2D 画布中器件的物理坐标
+            document.querySelectorAll(`.eda-component[data-ref="${targetRef}"]`).forEach(comp => {
+                // 获取当前位置（如果有 g 元素包裹，需要处理 transform）
+                const currentTransform = comp.getAttribute('transform') || '';
+                
+                // 如果有现有的 transform，解析并更新
+                const translateMatch = currentTransform.match(/translate\s*\(\s*([^,\)]+)\s*,?\s*([^\)]*)\)/);
+                let currentX = 0, currentY = 0;
+                if (translateMatch) {
+                    currentX = parseFloat(translateMatch[1]) || 0;
+                    currentY = parseFloat(translateMatch[2]) || 0;
+                }
+                
+                // 应用新的 transform（在原有基础上加上偏移）
+                const newTransform = `translate(${currentX + dx}, ${currentY + dy})`;
+                comp.setAttribute('transform', newTransform);
+                
+                // 同时清理任何 CSS 样式中的预览效果
+                comp.style.transform = '';
+                comp.style.opacity = '1';
+                comp.style.filter = '';
+            });
+            
+            // 通知 3D 引擎更新模型坐标
+            bus.emit('UPDATE_COMPONENT_POSITION_3D', {
+                ref: targetRef,
+                dx,
+                dy,
+                dz,
+                isPermanent: true
+            });
+            
+            // 数据层：将 oldPos 更新为 newPos，确保持久化
+            detail.oldPos = { ...detail.newPos };
+            if (detail.oldZ !== undefined && detail.newZ !== undefined) {
+                detail.oldZ = detail.newZ;
+            }
+            
+            console.log(`[IDX] ${targetRef} 物理位置已更新: 偏移 (${dx}, ${dy})`);
+        }
+        
+        // ========== Step 3: IDX 提议状态机更新 ==========
+        if (tx) {
+            // 更新 detail 状态
+            if (detail) {
+                detail.status = 'accepted';
+            }
+            // 检查是否所有 detail 都已 accepted
+            if (tx.details) {
+                const allAccepted = tx.details.every(d => d.status === 'accepted');
+                if (allAccepted) {
+                    tx.status = 'accepted';
+                }
+            }
+        }
+        
+        // ========== Step 4: 级联闭环批注系统 ==========
+        // 发射基于 targetRef 的级联闭环事件
+        bus.emit('CASCADE_RESOLVE_ANNOTATIONS_BY_REF', targetRef);
+        
+        // ========== Step 5: IDX 协同面板 UI 收敛 ==========
+        // 重新渲染 IDX 面板（状态变化后按钮会自动隐藏）
+        if (currentTab === 'collab') {
+            const tabContent = document.getElementById('tab-content');
+            if (tabContent) {
+                // 重置事件绑定标志，允许重新绑定
+                tabContent._idxEventsBound = false;
+                renderIdxPanel(tabContent);
+            }
+        }
+        
+        // 发射数据刷新事件
+        bus.emit('ANNOTATIONS_UPDATED');
+        bus.emit('IDX_DATA_REFRESH');
+        
+        // ========== Step 6: 弹出成功提示 ==========
+        if (window.showToast) {
+            window.showToast(`接收到本地 ECAD 同步指令，${targetRef} 提议已接受，关联讨论已自动闭环。`, 'success');
+        }
+        
+        console.log(`[IDX] ${targetRef} 接受提议闭环处理完成`);
+    });
+
+    // === 沙箱控制台事件监听：重置所有测试数据 ===
+    bus.on('SANDBOX:RESET_ALL', () => {
+        console.log('[IDX] 收到沙箱重置事件');
+        
+        // 1. 重新加载原始Mock数据
+        transactions = JSON.parse(JSON.stringify(idxTransactions));
+        
+        // 2. 更新全局批注数据
+        if (window.currentAnnotations) {
+            window.currentAnnotations = JSON.parse(JSON.stringify(presetAnnotations));
+        }
+        
+        // 3. 清理所有预览状态
+        cleanupAllPreviews();
+        
+        // 4. 重新渲染IDX面板
+        if (currentTab === 'collab') {
+            const tabContent = document.getElementById('tab-content');
+            if (tabContent) renderIdxPanel(tabContent);
+        }
+        
+        // 5. 广播全局刷新事件，让其他模块响应
+        bus.emit('ANNOTATIONS_UPDATED');
+        bus.emit('GLOBAL_DATA_RESET');
+        
+        // 6. 弹出提示
+        if (window.showToast) {
+            window.showToast('已重置所有测试数据', 'info');
+        }
+        
+        console.log('[IDX] 重置处理完成');
+    });
+
     console.log('IDX 协同管理器初始化完成');
 }
 
@@ -135,8 +284,8 @@ function renderIdxPanel(container) {
                                         <div class="flex items-center space-x-2">
                                             <span class="text-sm font-bold text-gray-800">${ref}</span>
                                         </div>
-                                        <span class="text-xs px-2 py-1 rounded-full ${tx.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'} font-medium">
-                                            ${tx.status === 'pending' ? '待处理' : '已固化'}
+                                        <span class="text-xs px-2 py-1 rounded-full ${detail.status === 'accepted' ? 'bg-green-100 text-green-700' : (tx.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700')} font-medium">
+                                            ${detail.status === 'accepted' ? '已接受' : (tx.status === 'pending' ? '待处理' : '已固化')}
                                         </span>
                                     </div>
                                     <!-- Layer 2: 变更详情区 -->
@@ -163,7 +312,8 @@ function renderIdxPanel(container) {
                                     </div>
                                     
                                     <!-- Layer 4: 卡片操作底栏 (Action Bar) -->
-                                    ${tx.status === 'pending' ? `
+                                    <!-- 修复：基于 detail.status 而非 tx.status 决定是否显示按钮 -->
+                                    ${(detail.status !== 'accepted' && tx.status === 'pending') ? `
                                         <div class="px-4 py-3 border-t border-gray-200 bg-gray-50/50">
                                             <div class="flex justify-end space-x-2">
                                                 <button class="btn-load-preview px-3 py-1.5 text-xs bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm font-medium" title="加载此提议的预览效果" data-txid="${tx.id}" data-ref="${ref}">
@@ -174,7 +324,15 @@ function renderIdxPanel(container) {
                                                 </button>
                                             </div>
                                         </div>
-                                    ` : ''}
+                                    ` : `
+                                        <!-- 已接受的提议：显示只读提示 -->
+                                        <div class="px-4 py-3 border-t border-gray-200 bg-green-50/50">
+                                            <div class="text-xs text-green-600 flex items-center justify-center">
+                                                <i class="fas fa-check-circle mr-1"></i>
+                                                ${linkedAnnotations.length > 0 ? `${linkedAnnotations.length} 条探讨已关闭` : '提议已接受'}
+                                            </div>
+                                        </div>
+                                    `}
                                     
                                 </div>
                             `;
@@ -188,9 +346,20 @@ function renderIdxPanel(container) {
 
     html += '</div>';
 
-    // === 新增：如果存在待处理(pending)的提议，在面板底部固定展示全局控制按钮 ===
-    const hasPending = transactions.some(tx => tx.status === 'pending');
-    if (hasPending) {
+    // === 修复：基于 detail.status 细粒度判断是否存在待处理项 ===
+    // 遍历所有 transactions 及其 details，只有存在至少一个 status !== 'accepted' 的 detail 时才显示底栏
+    let hasPendingDetail = false;
+    transactions.forEach(tx => {
+        if (tx.details) {
+            tx.details.forEach(detail => {
+                if (detail.status !== 'accepted') {
+                    hasPendingDetail = true;
+                }
+            });
+        }
+    });
+    
+    if (hasPendingDetail) {
         html += `
             <div class="sticky bottom-0 left-0 right-0 p-3 bg-white border-t border-gray-200 flex justify-center space-x-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
                 <button id="btn-clear-all-idx" class="px-3 py-1.5 text-xs text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 rounded transition-colors shadow-sm">
@@ -215,31 +384,34 @@ function renderIdxPanel(container) {
 
 let previewStates = {}; // 记录器件的预览状态
 
-// === 新增：预览状态生命周期清理函数 ===
+// === 预览状态生命周期清理函数（安全兜底） ===
+// 核心原则：只清除临时附加的视觉属性，绝不破坏已固化的物理位置
 function cleanupAllPreviews() {
     // 遍历所有活动中的预览状态
     Object.keys(previewStates).forEach(ref => {
         if (previewStates[ref]) {
-            // 1. 清理 2D CSS 变换
+            // 1. 清理 2D CSS 变换（临时视觉层）
+            // 注意：这里只清除 CSS style 属性，不会影响 SVG 的 transform 属性（物理位置）
+            // 对于已固化的器件，其物理位置已通过 SVG transform 属性持久化，不会被此操作影响
             document.querySelectorAll(`.eda-component[data-ref="${ref}"]`).forEach(comp => {
                 comp.style.transform = '';
                 comp.style.opacity = '1';
                 comp.style.filter = '';
             });
             
-            // 2. 向 3D 引擎发送关闭预览信号
+            // 2. 向 3D 引擎发送关闭预览信号（Ghost 模式）
             bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx: 0, dy: 0, isPreviewing: false });
             
-            // 3. 重置预览状态
+            // 3. 重置预览状态字典
             previewStates[ref] = false;
             
-            // 4. 清理 UI 状态
+            // 4. 清理侧边栏 UI 状态
             document.querySelectorAll(`.detail-item[data-ref="${ref}"]`).forEach(item => {
                 item.classList.remove('bg-blue-100', 'border-blue-300');
                 item.classList.add('bg-gray-50');
             });
             
-            // 5. 重置按钮状态
+            // 5. 重置单个预览按钮状态
             document.querySelectorAll(`.btn-load-preview[data-ref="${ref}"]`).forEach(btn => {
                 btn.innerHTML = '加载预览';
                 btn.classList.replace('bg-amber-50', 'bg-white');
@@ -252,10 +424,10 @@ function cleanupAllPreviews() {
     // 清空预览状态字典
     previewStates = {};
     
-    // === 新增：广播全局清理信号 ===
+    // 广播全局清理信号
     bus.emit('CLEANUP_ALL_PREVIEWS');
     
-    console.log('IDX: 已清理所有预览状态');
+    console.log('IDX: 已安全清理所有预览状态（未破坏已固化位置）');
 }
 
 function bindIdxEvents(container) {
@@ -432,11 +604,17 @@ function bindIdxEvents(container) {
 
         const previewBtn = e.target.closest('#btn-preview-all-idx');
         if (previewBtn) {
+            // === 修复：严格过滤，只对 pending 状态的 detail 应用残影 ===
             transactions.forEach(tx => {
-                // 只处理处于待定状态的记录
-                if (tx.status === 'pending') {
+                if (tx.details) {
                     tx.details.forEach(detail => {
                         const ref = detail.targetRef;
+                        
+                        // === 核心过滤：跳过已固化的 detail ===
+                        if (detail.status === 'accepted') {
+                            console.log(`[IDX] 预览所有：跳过已固化的器件 ${ref}`);
+                            return;
+                        }
                         
                         // 如果已经在预览中了，直接跳过，防止重复渲染
                         if (previewStates[ref]) return;
@@ -451,19 +629,21 @@ function bindIdxEvents(container) {
                             detailItem.classList.remove('bg-gray-50');
                         }
 
-                        // 计算位移偏差
-                        const dx = detail.newPos.x - detail.oldPos.x;
-                        const dy = detail.newPos.y - detail.oldPos.y;
+                        // 计算位移偏差（只有存在位置信息时才计算）
+                        if (detail.oldPos && detail.newPos) {
+                            const dx = detail.newPos.x - detail.oldPos.x;
+                            const dy = detail.newPos.y - detail.oldPos.y;
 
-                        // 2. 驱动 2D 引擎产生残影预览（注意这里不调用 updateCanvasState 追踪镜头）
-                        document.querySelectorAll(`.eda-component[data-ref="${ref}"]`).forEach(comp => {
-                            comp.style.transform = `translate(${dx}px, ${dy}px)`;
-                            comp.style.opacity = '0.5';
-                            comp.style.filter = 'drop-shadow(0 0 6px rgba(245, 158, 11, 0.8))';
-                        });
+                            // 2. 驱动 2D 引擎产生残影预览（注意这里不调用 updateCanvasState 追踪镜头）
+                            document.querySelectorAll(`.eda-component[data-ref="${ref}"]`).forEach(comp => {
+                                comp.style.transform = `translate(${dx}px, ${dy}px)`;
+                                comp.style.opacity = '0.5';
+                                comp.style.filter = 'drop-shadow(0 0 6px rgba(245, 158, 11, 0.8))';
+                            });
 
-                        // 3. 驱动 3D 引擎产生残影预览
-                        bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx, dy, isPreviewing: true });
+                            // 3. 驱动 3D 引擎产生残影预览
+                            bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx, dy, isPreviewing: true });
+                        }
                         
                         // 4. 更新按钮状态
                         const btn = container.querySelector(`.btn-load-preview[data-ref="${ref}"]`);
