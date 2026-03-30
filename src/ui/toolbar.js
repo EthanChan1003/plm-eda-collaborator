@@ -16,11 +16,45 @@ export function initToolbar() {
     const toolSelect = document.getElementById('tool-select');
     const toolPan = document.getElementById('tool-pan');
     const toolRect = document.getElementById('tool-rect');
+    const toolCircle = document.querySelector('#annotation-sub-menu button[title="圆形框"]');
+    const toolPin = document.querySelector('#annotation-sub-menu button[title="标记点/箭头"]');
     const toolZoomIn = document.getElementById('tool-zoom-in');
     const toolZoomOut = document.getElementById('tool-zoom-out');
     const toolReset = document.getElementById('tool-reset');
     const toolSplitView = document.getElementById('tool-split-view');
+    const toolToggleAnnotations = document.getElementById('tool-toggle-annotations');
     const canvasWrapper = document.getElementById('canvas-wrapper');
+
+    let isAnnotationsVisible = true; // 默认可见
+
+    // === 新增：全局批注显隐开关逻辑 ===
+    if (toolToggleAnnotations) {
+        toolToggleAnnotations.addEventListener('click', () => {
+            isAnnotationsVisible = !isAnnotationsVisible;
+            const icon = toolToggleAnnotations.querySelector('i');
+            
+            if (isAnnotationsVisible) {
+                icon.className = 'fas fa-eye text-sm';
+                toolToggleAnnotations.classList.add('text-blue-600', 'bg-blue-50');
+                toolToggleAnnotations.classList.remove('text-gray-500', 'hover:bg-gray-50');
+            } else {
+                icon.className = 'fas fa-eye-slash text-sm';
+                toolToggleAnnotations.classList.remove('text-blue-600', 'bg-blue-50');
+                toolToggleAnnotations.classList.add('text-gray-500', 'hover:bg-gray-50');
+            }
+            // 向全局广播显隐状态
+            bus.emit('TOGGLE_ANNOTATIONS_VISIBILITY', isAnnotationsVisible);
+        });
+    }
+
+    // 监听外部强制打开请求（用于防呆设计）
+    bus.on('FORCE_ANNOTATIONS_VISIBLE', () => {
+        console.log('[DEBUG] FORCE_ANNOTATIONS_VISIBLE triggered, isAnnotationsVisible:', isAnnotationsVisible);
+        if (!isAnnotationsVisible && toolToggleAnnotations) {
+            console.log('[DEBUG] Clicking toolToggleAnnotations to enable annotations');
+            toolToggleAnnotations.click(); // 模拟点击恢复开启
+        }
+    });
 
     const annotationMainBtn = document.getElementById('annotation-main-btn');
     const annotationSubMenu = document.getElementById('annotation-sub-menu');
@@ -38,6 +72,8 @@ export function initToolbar() {
         if (toolSelect) toolSelect.classList.remove('tool-active');
         if (toolPan) toolPan.classList.remove('tool-active');
         if (toolRect) toolRect.classList.remove('tool-active');
+        // === 新增：重置批注主按钮的高亮 ===
+        if (annotationMainBtn) annotationMainBtn.classList.remove('tool-active', 'bg-blue-50', 'text-blue-600');
 
         // 重置光标
         if (canvasWrapper) {
@@ -55,6 +91,8 @@ export function initToolbar() {
                 break;
             case ToolMode.ANNOTATE:
                 if (toolRect) toolRect.classList.add('tool-active');
+                // === 新增：让工具栏的主钢笔图标也亮起，增强反馈 ===
+                if (annotationMainBtn) annotationMainBtn.classList.add('tool-active', 'bg-blue-50', 'text-blue-600');
                 if (canvasWrapper) canvasWrapper.classList.add('cursor-crosshair');
                 break;
         }
@@ -63,6 +101,10 @@ export function initToolbar() {
     // 监听工具模式变化事件
     bus.on('TOOL_MODE_CHANGED', (mode) => {
         setToolModeUI(mode);
+        // === 核心防呆：一旦用户选择要开始画批注，强制打开批注显示 ===
+        if (mode === ToolMode.ANNOTATE) {
+            bus.emit('FORCE_ANNOTATIONS_VISIBLE');
+        }
     });
 
     // 监听视图切换，同步工具栏 UI（控制 3D 分屏按钮显隐）
@@ -120,13 +162,31 @@ export function initToolbar() {
     if (toolPan) {
         toolPan.addEventListener('click', () => bus.emit('TOOL_MODE_CHANGED', ToolMode.PAN));
     }
+
+    // === 核心替换：支持图钉/形状广播 ===
     if (toolRect) {
         toolRect.addEventListener('click', () => {
+            bus.emit('ANNOTATION_SHAPE_CHANGED', 'rect'); // 广播形状：矩形
             bus.emit('TOOL_MODE_CHANGED', ToolMode.ANNOTATE);
-            // 点击具体工具后关闭下拉菜单
-            if (annotationSubMenu) {
-                annotationSubMenu.classList.add('hidden');
-            }
+            if (annotationSubMenu) annotationSubMenu.classList.add('hidden');
+        });
+    }
+
+    if (toolCircle) {
+        toolCircle.addEventListener('click', () => {
+            bus.emit('ANNOTATION_SHAPE_CHANGED', 'circle'); // 广播形状：圆形
+            bus.emit('TOOL_MODE_CHANGED', ToolMode.ANNOTATE);
+            if (annotationSubMenu) annotationSubMenu.classList.add('hidden');
+        });
+    }
+
+    if (toolPin) {
+        toolPin.addEventListener('click', () => {
+            // 广播新形状：图钉 (Pin)
+            bus.emit('ANNOTATION_SHAPE_CHANGED', 'pin');
+            // 切换到批注模式（激活 cursor-crosshair）
+            bus.emit('TOOL_MODE_CHANGED', ToolMode.ANNOTATE);
+            if (annotationSubMenu) annotationSubMenu.classList.add('hidden');
         });
     }
 

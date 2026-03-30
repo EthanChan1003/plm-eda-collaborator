@@ -189,6 +189,36 @@ bus.on('TOOL_MODE_CHANGED', (mode) => {
     currentToolMode = mode;
 });
 
+// === 新增：监听 LOCATE_COMPONENT 事件，实现器件定位功能 ===
+bus.on('LOCATE_COMPONENT', ({ ref, targetX, targetY, scale }) => {
+    const transformEl = document.getElementById('canvas-transform');
+    if (!transformEl) return;
+    
+    // 如果提供了具体坐标，则定位到指定位置
+    if (targetX !== undefined && targetY !== undefined) {
+        const targetScale = scale || 1.8;
+        const targetTranslateX = (500 - targetX) * targetScale;
+        const targetTranslateY = (400 - targetY) * targetScale;
+        
+        transformEl.style.transition = 'transform 0.5s ease-out';
+        updateCanvasState({
+            scale: targetScale,
+            translateX: targetTranslateX,
+            translateY: targetTranslateY
+        });
+        bus.emit('CANVAS_STATE_CHANGED');
+        
+        setTimeout(() => {
+            transformEl.style.transition = '';
+        }, 500);
+    }
+    
+    // 高亮目标器件
+    if (typeof window.highlightComponent === 'function') {
+        window.highlightComponent(ref);
+    }
+});
+
 // ============ 初始化函数 ============
 export function init2DEngine() {
     const canvasWrapper = document.getElementById('canvas-wrapper');

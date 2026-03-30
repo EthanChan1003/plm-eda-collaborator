@@ -99,6 +99,39 @@ body {
     box-shadow: none;
 }
 
+/* ========== 图钉批注专用样式 ========== */
+.annotation-pin {
+    /* 确保图钉不受普通批注样式影响 */
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    /* 保持指针事件 */
+    pointer-events: auto;
+    /* 确保正确的层级 */
+    z-index: 45;
+}
+
+.annotation-pin:hover {
+    /* 图钉悬停效果 */
+    transform: scale(1.1);
+    transition: transform 0.15s ease;
+}
+
+.annotation-pin.selected {
+    /* 选中时的特殊效果 */
+    transform: scale(1.15);
+}
+
+/* 已解决的图钉批注样式 */
+.annotation-pin.annotation-resolved {
+    opacity: 0.6;
+}
+
+.annotation-pin.annotation-resolved:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+}
+
 /* ========== 跨视图预警系统：SVG 呼吸光环 ========== */
 @keyframes warning-glow {
     0% { filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.7)); }
@@ -329,4 +362,14 @@ body {
     opacity: 0.4;
     cursor: not-allowed;
     pointer-events: none;
+}
+
+/* 图钉已解决状态样式 */
+.annotation-resolved {
+    opacity: 0.6;
+    filter: grayscale(100%);
+}
+
+.annotation-resolved svg {
+    color: #9ca3af !important; /* 灰色 */
 }

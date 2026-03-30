@@ -37,7 +37,8 @@ export const versionedComponentData = {
         'Y1': { RefDes: 'Y1', PartNumber: 'X49SM8MSD2SC', Footprint: 'HC-49S', ItemNumber: 'XTAL-8M-HC49-401223', Description: 'Crystal Oscillator 8MHz 20pF HC-49S SMD, 系统主时钟', Status: '提交' },
         'D1': { RefDes: 'D1', PartNumber: 'KT-0603R', Footprint: '0603', ItemNumber: 'LED-RED-0603-501334', Description: 'Red LED 0603 SMD, 20mA, 波长 620-625nm, 电源指示灯', Status: '归档' },
         'J1': { RefDes: 'J1', PartNumber: 'B4B-PH-K-S', Footprint: 'PH-4P', ItemNumber: 'CONN-PH-4P-601445', Description: 'JST PH Series 4-Pin Connector 2.0mm Pitch, SWD调试接口', Status: '提交' },
-        'C4': { RefDes: 'C4', PartNumber: 'CC0603KRX7R9BB104', Footprint: '0603', ItemNumber: 'CAP-MLCC-100N-302201', Description: 'Ceramic Capacitor 100nF 50V X7R 0603 SMD, J1接口滤波', Status: '提交' }
+        'C4': { RefDes: 'C4', PartNumber: 'CC0603KRX7R9BB104', Footprint: '0603', ItemNumber: 'CAP-MLCC-100N-302201', Description: 'Ceramic Capacitor 100nF 50V X7R 0603 SMD, J1接口滤波', Status: '提交' },
+        'U3': { RefDes: 'U3', PartNumber: 'MP2315', Footprint: 'QFN-16', ItemNumber: 'IC-PMIC-BUCK-100567', Description: '3A, 24V, 500KHz Step-Down Converter, 高效降压电源芯片', Status: '提交' }
     }
 };
 
@@ -121,6 +122,20 @@ export const presetAnnotations = [
         id: 4, text: '【AI 优化建议】识别到当前 R1/R2 选型非公司推荐物料库（AVL），建议替换为常用料号 RES-0603-10K。', targetRef: 'R1', viewType: 'schematic', status: 'open', version: 'V2.1',
         centerX: 650, centerY: 420,
         author: 'AI 智能评审', time: '2026-03-26 15:00'
+    },
+    {
+        id: 5, 
+        text: '针对热仿真提议：向左下移会侵入高速布线禁布区，建议只往下移，不往左移。', 
+        targetRef: 'U3', 
+        viewType: 'pcb', 
+        status: 'open', 
+        version: 'V2.1',
+        centerX: 290, 
+        centerY: 165, 
+        shape: 'pin',
+        linkedIdxId: 'IDX-U3-001', // === 核心外键：与上方的 IDX 提议死死绑定 ===
+        author: '硬件张', 
+        time: '2026-03-30 09:15'
     }
 ];
 
@@ -156,6 +171,15 @@ export const idxTransactions = [
                 desc: '避让螺丝柱',
                 oldPos: { x: 100, y: 140 },
                 newPos: { x: 120, y: 140 }
+            },
+            {
+                id: 'IDX-U3-001', // 唯一标识符，作为关联外键
+                action: 'MOVE',
+                targetRef: 'U3',
+                desc: '【热仿真预警】U3 芯片发热量过大，建议向左下方移动，远离主控区域。',
+                oldPos: { x: 300, y: 150 }, // 假设的原坐标
+                newPos: { x: 280, y: 180 }, // 建议的新坐标
+                status: 'pending'
             }
         ]
     }
