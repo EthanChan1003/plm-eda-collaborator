@@ -58,6 +58,14 @@ export function initIdxManager() {
         renderIdxPanel(tabContent);
     }
 
+    // === 核心修复：监听数据刷新事件 ===
+    bus.on('ANNOTATIONS_UPDATED', () => {
+        if (currentTab === 'collab') {
+            const tabContent = document.getElementById('tab-content');
+            if (tabContent) renderIdxPanel(tabContent);
+        }
+    });
+
     console.log('IDX 协同管理器初始化完成');
 }
 
@@ -112,8 +120,9 @@ function renderIdxPanel(container) {
                                 // === 核心替换：带有状态关联与视觉隔离的 UI 渲染 ===
                                 const ref = detail.targetRef;
                                             
-                                // 动态计算关联的批注数量
-                                const linkedAnnotations = presetAnnotations.filter(a => a.linkedIdxId === tx.id);
+                                // === 核心修复 3：读取实时的全局批注池，确保探讨数量动态更新 ===
+                                const allAnnots = window.currentAnnotations || presetAnnotations;
+                                const linkedAnnotations = allAnnots.filter(a => a.linkedIdxId === tx.id || a.linkedIdxId === ref);
                                 const openLinkedCount = linkedAnnotations.filter(a => a.status === 'open').length;
                     
                                 return `
@@ -370,40 +379,49 @@ function bindIdxEvents(container) {
         });
     }
 
-    // === 新增：绑定交互按钮 ===
-    // 1. Web 端发起批注 (只发信号，具体实现在下一个迭代补齐绘图逻辑)
+    // 1. === 核心修复 2：触发自动打点 ===
     container.querySelectorAll('.btn-link-annotation').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            e.stopPropagation(); // 阻止卡片本身的预览点击
+            e.stopPropagation();
+            const txId = btn.getAttribute('data-txid');
             const targetRef = btn.getAttribute('data-ref');
-            if (window.showToast) {
-                window.showToast(`已进入批注模式，请在图纸上点击放置针对 ${targetRef} 的意见`, 'info');
-            }
-            // 激活图钉工具
-            bus.emit('ANNOTATION_SHAPE_CHANGED', 'pin');
-            bus.emit('TOOL_MODE_CHANGED', 'ANNOTATE');
-            // 此处可以进一步扩展：将 txId 存入 AppState，供保存批注时读取
+            
+            // 去找这个器件的坐标
+            let x = 0, y = 0;
+            transactions.forEach(tx => {
+                const items = tx.details ? tx.details : [tx];
+                const detail = items.find(d => d.targetRef === targetRef);
+                if (detail && detail.oldPos) { x = detail.oldPos.x; y = detail.oldPos.y; }
+            });
+
+            // 告诉批注引擎去干活
+            bus.emit('AUTO_ADD_IDX_ANNOTATION', { targetRef, txId, x, y });
         });
     });
 
-    // 2. 模拟线下固化同步 (触发状态级联)
+    // 2. === 核心修复 1：精确锁定目标器件，拒绝"一键全锅端" ===
     container.querySelectorAll('.btn-simulate-accept').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const txId = btn.getAttribute('data-txid');
-            const tx = transactions.find(t => t.id === txId);
             
-            if (tx) {
-                tx.status = 'accepted'; // 改变自身状态
-                
-                // === 核心：广播联动信号，要求批注系统自动关闭关联项 ===
-                bus.emit('CASCADE_RESOLVE_ANNOTATIONS', txId);
-                
-                if (window.showToast) {
-                    window.showToast(`提议 ${txId} 已在本地固化，关联探讨已自动关闭`, 'success');
+            // 采用更安全的查找逻辑，确保只改变对应 ID 的提议状态
+            let found = false;
+            transactions.forEach(tx => {
+                if (tx.id === txId && tx.status === 'pending') {
+                    tx.status = 'accepted'; found = true;
+                } else if (tx.details) {
+                    const detailTx = tx.details.find(d => d.id === txId && d.status === 'pending');
+                    if (detailTx) { detailTx.status = 'accepted'; found = true; }
                 }
+            });
+            
+            if (found) {
+                // 广播级联关闭信号
+                bus.emit('CASCADE_RESOLVE_ANNOTATIONS', txId);
+                if (window.showToast) window.showToast(`提议 ${txId} 已固化，关联探讨自动关闭`, 'success');
                 
-                // 清理所有高亮残影，并重新渲染当前面板
+                // 清理并刷新
                 bus.emit('VIEW_CHANGED'); 
                 const tabContent = document.getElementById('tab-content');
                 if (tabContent) renderIdxPanel(tabContent);

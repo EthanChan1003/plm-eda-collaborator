@@ -6,6 +6,7 @@ import { canvasState, updateCanvasState } from '../core/engine.2d.js';
 
 // 批注数据存储
 let annotations = [...presetAnnotations];
+window.currentAnnotations = annotations; // === 新增：暴露实时批注数据池 ===
 
 // DOM 引用（延迟初始化）
 let canvasWrapper = null;
@@ -97,6 +98,17 @@ export function initAnnotationManager() {
                 annotation.status = 'resolved';
                 resolvedCount++;
                 
+                // === 核心修复 4：直接操作图钉 DOM，瞬间变灰 ===
+                if (annotation.element) {
+                    annotation.element.classList.add('annotation-resolved');
+                    // 如果是图钉，把里面的红色 SVG 改成灰色
+                    const svgPath = annotation.element.querySelector('svg');
+                    if (svgPath) {
+                        svgPath.classList.remove('text-red-600');
+                        svgPath.classList.add('text-gray-400');
+                    }
+                }
+                
                 // 可选：在批注历史中追加一条系统日志
                 if (!annotation.replies) annotation.replies = [];
                 annotation.replies.push({
@@ -112,8 +124,48 @@ export function initAnnotationManager() {
             // 1. 重新渲染画布上的批注图标（红色图钉会变成灰色圆角状态）
             renderPresetAnnotations();
             // 2. 如果批注侧边栏处于打开状态，广播信号让其刷新列表
-            bus.emit('ANNOTATIONS_UPDATED', annotations);
+            bus.emit('ANNOTATIONS_UPDATED');
         }
+    });
+
+    // === 核心修复 2：接收 IDX 的指令，自动在目标位置生成图钉并弹出输入框 ===
+    bus.on('AUTO_ADD_IDX_ANNOTATION', ({ targetRef, txId, x, y }) => {
+        bus.emit('FORCE_ANNOTATIONS_VISIBLE');
+        
+        // 暂存外键，供用户点击"保存"时读取
+        AppState.pendingLinkedIdxId = txId;
+        currentAnnotationShape = 'pin';
+        
+        // 1. 自动生成图钉 DOM
+        const pin = document.createElement('div');
+        pin.className = 'annotation-box annotation-pin';
+        const finalW = PIN_W; const finalH = PIN_H;
+        pin.style.width = finalW + 'px';
+        pin.style.height = finalH + 'px';
+        pin.style.left = (x - finalW/2) + 'px';
+        pin.style.top = (y - (finalH/2 + PIN_TIP_Y_OFFSET)) + 'px';
+        pin.style.border = 'none';
+        pin.style.background = 'none';
+        pin.innerHTML = `<svg viewBox="0 0 24 32" class="w-full h-full text-red-600 transition-transform"><path d="M12 0C5.37 0 0 5.37 0 12c0 8.84 10.4 19.17 11.13 19.89.47.47 1.25.47 1.73 0C13.6 31.17 24 20.84 24 12c0-6.63-5.37-12-12-12zm0 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12z" fill="currentColor"/></svg>`;
+        
+        const canvasTransform = document.getElementById('canvas-transform');
+        if (canvasTransform) canvasTransform.appendChild(pin);
+        
+        // 2. 自动定位镜头到该器件
+        const targetScale = 1.8;
+        updateCanvasState({ scale: targetScale, translateX: (500 - x) * targetScale, translateY: (400 - y) * targetScale });
+        bus.emit('CANVAS_STATE_CHANGED');
+
+        // 3. 弹出输入面板并预填文案
+        currentAnnotationBox = pin;
+        showAnnotationInputPanel(pin);
+        setTimeout(() => {
+            const textInput = document.getElementById('annotation-text');
+            if (textInput) {
+                textInput.value = `针对 ${targetRef} 的评审意见：`;
+                textInput.focus();
+            }
+        }, 100);
     });
 
     // 绑定绘图事件
@@ -121,6 +173,7 @@ export function initAnnotationManager() {
 
     // 渲染预置批注
     renderPresetAnnotations();
+    window.currentAnnotations = annotations; // === 新增同步 ===
     
     // 初始更新跨视图预警
     updateCrossViewWarnings();
@@ -367,8 +420,13 @@ function saveAnnotation(annotationBox, text) {
         status: 'open',
         version: AppState.currentVersion,
         // === 新增：记录当前批注的形状 ===
-        shape: currentAnnotationShape
+        shape: currentAnnotationShape,
+        // === 核心修复 4：将暂存的外键死死绑定到这条数据上 ===
+        linkedIdxId: AppState.pendingLinkedIdxId || null 
     };
+    
+    // 用完即清理暂存状态
+    AppState.pendingLinkedIdxId = null;
     annotations.push(annotationData);
 
     annotationBox.addEventListener('click', (e) => {
@@ -379,8 +437,8 @@ function saveAnnotation(annotationBox, text) {
     // 通知控制器更新批注列表
     bus.emit('ANNOTATION_SAVED', annotationData);
     
-    // 触发反应式更新
-    bus.emit('ANNOTATIONS_UPDATED', annotations);
+    // === 核心修复 3：通知 IDX 面板，有新批注加入了，请刷新探讨数量！ ===
+    bus.emit('ANNOTATIONS_UPDATED');
 }
 
 /**
