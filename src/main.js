@@ -12,6 +12,7 @@ import { initLayoutManager } from './ui/layout.manager.js';
 import { initVersionManager } from './features/version.manager.js';
 import { initToastManager } from './ui/toast.manager.js';
 import { initIdxManager } from './features/idx.manager.js';
+import { initSandboxConsole } from './ui/sandbox.console.js';
 
 // 临时挂载到 window 保证旧代码兼容性，重构完成后将移除
 window.bus = bus;
@@ -31,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initAnnotationManager();
     initSidebar();
     initSearchManager();
+    initSandboxConsole();
 
     // 激活 PDF 导出模块
     initPdfExporter(getAnnotations);

@@ -134,6 +134,47 @@ export function initAnnotationManager() {
         }
     });
 
+    // === 新增联动：基于 targetRef 级联关闭关联批注（接受提议专用） ===
+    bus.on('CASCADE_RESOLVE_ANNOTATIONS_BY_REF', (targetRef) => {
+        console.log(`[批注管理器] 收到基于 targetRef 的级联闭环事件: ${targetRef}`);
+        let resolvedCount = 0;
+        
+        // 遍历所有数据，找到绑定在该 targetRef 下且状态为 open 的批注
+        annotations.forEach(annotation => {
+            if (annotation.targetRef === targetRef && annotation.status === 'open') {
+                annotation.status = 'resolved';
+                resolvedCount++;
+                
+                // 直接操作图钉 DOM，瞬间变灰
+                if (annotation.element) {
+                    annotation.element.classList.add('annotation-resolved');
+                    // 如果是图钉，把里面的红色 SVG 改成灰色
+                    if (annotation.shape === 'pin') {
+                        const svgElement = annotation.element.querySelector('svg');
+                        if (svgElement) {
+                            svgElement.classList.remove('text-red-600');
+                            svgElement.classList.add('text-gray-400');
+                        }
+                    }
+                }
+                
+                // 在批注历史中追加一条系统日志
+                if (!annotation.replies) annotation.replies = [];
+                annotation.replies.push({
+                    author: '系统 (System)',
+                    text: '关联的 IDX 提议已被本地 ECAD 同步固化，此讨论自动关闭。',
+                    time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                });
+            }
+        });
+
+        if (resolvedCount > 0) {
+            console.log(`[联动触发] 已基于 targetRef=${targetRef} 自动关闭 ${resolvedCount} 条批注`);
+            // 刷新视图
+            bus.emit('ANNOTATIONS_UPDATED');
+        }
+    });
+
     // === 核心修复 2：接收 IDX 的指令，自动在目标位置生成图钉并弹出输入框 ===
     bus.on('AUTO_ADD_IDX_ANNOTATION', ({ targetRef, txId, detailId, x, y }) => {
         console.log('[DEBUG] AUTO_ADD_IDX_ANNOTATION received:', { targetRef, txId, detailId, x, y });
@@ -206,6 +247,28 @@ export function initAnnotationManager() {
                 textInput.focus();
             }
         }, 100);
+    });
+
+    // === 沙箱控制台事件监听：全局数据重置 ===
+    bus.on('GLOBAL_DATA_RESET', () => {
+        console.log('[批注管理器] 收到全局数据重置事件');
+        
+        // 1. 清理画布上所有现有批注DOM
+        document.querySelectorAll('.annotations-container').forEach(container => {
+            container.innerHTML = '';
+        });
+        
+        // 2. 重新加载原始批注数据
+        annotations = [...presetAnnotations];
+        window.currentAnnotations = annotations;
+        
+        // 3. 重新渲染批注
+        renderPresetAnnotations();
+        
+        // 4. 更新跨视图预警
+        updateCrossViewWarnings();
+        
+        console.log('[批注管理器] 批注数据已重置');
     });
 
     // 绑定绘图事件

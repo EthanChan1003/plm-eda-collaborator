@@ -10,6 +10,9 @@ let pcbLayers3D = {
     top: new THREE.Group(),
     bottom: new THREE.Group()
 };
+
+// === 新增：机械外壳装配组 ===
+let EnclosureGroup = null;
 // ===============================
 
 /**
@@ -318,6 +321,10 @@ export function initThreeEngine(container) {
     // 8. 生成 3D 走线网络
     createTraces(scene, pcbLayers3D);
 
+    // === 新增：生成机械外壳 ===
+    createMechanicalEnclosure();
+    // ===========================
+
     // 9. 渲染循环
     function animate() {
         requestAnimationFrame(animate);
@@ -358,8 +365,12 @@ export function initThreeEngine(container) {
         // 注意：第二个参数传 true，表示递归检测子对象（即 Group 里的 Mesh）
         const intersects = raycaster.intersectObjects(scene.children, true);
         
-        // 过滤掉没有 ref 的对象（比如基板），只拿元器件
-        const target = intersects.find(i => i.object.userData && i.object.userData.ref);
+        // 过滤掉没有 ref 的对象（比如基板）以及外壳对象，只拿元器件
+        const target = intersects.find(i => 
+            i.object.userData && 
+            i.object.userData.ref &&
+            !i.object.userData.isEnclosure // 排除外壳，确保射线穿透
+        );
 
         if (target) {
             const ref = target.object.userData.ref;
@@ -606,5 +617,275 @@ bus.on('TOGGLE_IDX_PREVIEW_3D', ({ ref, dx, dy, isPreviewing }) => {
             target.material.transparent = false;
             target.material.opacity = 1;
         }
+    }
+});
+
+// ============ 机械外壳动态生成系统 ============
+
+/**
+ * 计算 PCBA 的 Z 轴最高点（用于确定上盖净空高度）
+ * @returns {Object} 包含 maxZ 和 J1 器件信息的对象
+ */
+function calculateMaxZAndJ1Info() {
+    // 基于场景中元器件数据计算 Z 轴最高点
+    const componentsData = [
+        { ref: 'U1', x: 350, y: 280, w: 160, h: 160, z: 12, layer: 'top' },
+        { ref: 'U2', x: 100, y: 140, w: 50,  h: 40,  z: 15, layer: 'top' },
+        { ref: 'J1', x: 100, y: 600, w: 50,  h: 80,  z: 85, layer: 'top' }, // 最高的器件
+        { ref: 'Y1', x: 620, y: 290, w: 60,  h: 25,  z: 30, layer: 'top' },
+        { ref: 'C1', x: 260, y: 300, w: 25,  h: 12,  z: 8,  layer: 'top' },
+        { ref: 'C2', x: 260, y: 380, w: 30,  h: 14,  z: 10, layer: 'bottom' },
+        { ref: 'C3', x: 720, y: 290, w: 18,  h: 8,   z: 6,  layer: 'top' },
+        { ref: 'C4', x: 170, y: 600, w: 25,  h: 12,  z: 8,  layer: 'bottom' },
+        { ref: 'R1', x: 620, y: 410, w: 30,  h: 12,  z: 6,  layer: 'top' },
+        { ref: 'R2', x: 620, y: 470, w: 30,  h: 12,  z: 6,  layer: 'top' },
+        { ref: 'R3', x: 760, y: 310, w: 30,  h: 12,  z: 6,  layer: 'top' },
+        { ref: 'D1', x: 860, y: 310, w: 30,  h: 14,  z: 12, layer: 'top' },
+        { ref: 'U3', x: 300, y: 150, w: 40, h: 40, z: 12, layer: 'top' }
+    ];
+
+    let maxZ = 0;
+    let j1Info = null;
+
+    componentsData.forEach(comp => {
+        // Z 轴最大值（顶层器件）
+        if (comp.layer === 'top') {
+            const topZ = 8 + comp.z; // PCB 表面 Z 坐标 + 器件高度
+            maxZ = Math.max(maxZ, topZ);
+        }
+        
+        // 记录 J1 信息（用于侧壁开孔）
+        if (comp.ref === 'J1') {
+            const j1_3D_x = (comp.x + comp.w / 2) - 500;
+            const j1_3D_y = 400 - (comp.y + comp.h / 2);
+            j1Info = {
+                x: j1_3D_x,
+                y: j1_3D_y,
+                w: comp.w,
+                h: comp.h,
+                z: comp.z,
+                // 判断 J1 靠近哪个板边
+                nearEdge: Math.abs(j1_3D_y - (-350)) < Math.abs(j1_3D_y - 350) ? 'front' : 'back'
+            };
+        }
+    });
+
+    return { maxZ, j1Info };
+}
+
+/**
+ * 创建机械外壳（底座 + 上盖 + 支撑柱）
+ * 核心修正：基于 PCB 板框尺寸（而非器件包围盒）生成外壳
+ */
+function createMechanicalEnclosure() {
+    // 1. 创建独立的装配组
+    EnclosureGroup = new THREE.Group();
+    EnclosureGroup.name = 'EnclosureGroup';
+
+    // === 核心修复：固化 PCB 物理板框尺寸作为外壳基准 ===
+    // PCB 板框在 createPcbBoard() 中定义为 900x700，中心对齐到场景原点
+    const PCB_PHYSICAL_W = 900;
+    const PCB_PHYSICAL_H = 700;
+    // ===========================================================
+
+    // 2. 计算 Z 轴最高点（用于确定上盖净空）和 J1 信息
+    const { maxZ, j1Info } = calculateMaxZAndJ1Info();
+    
+    // 安装间距和安全净空
+    const marginXY = 5; // XY 平面安装间距 (mm)
+    const clearanceZ = 4; // Z 轴安全净空 (mm)
+    
+    // === 外壳内腔尺寸：基于 PCB 板框 ===
+    const innerWidth = PCB_PHYSICAL_W + marginXY * 2;
+    const innerHeight = PCB_PHYSICAL_H + marginXY * 2;
+    const innerDepth = maxZ + clearanceZ; // 上盖内部净空高度
+    // ===================================
+
+    // 外壳壁厚
+    const wallThickness = 2;
+    const baseThickness = 10; // 底座厚度
+    const coverThickness = 10; // 上盖厚度
+    
+    // PCB 厚度
+    const pcbThickness = 16;
+
+    // 3. 创建半透明底座
+    const baseMaterial = new THREE.MeshPhongMaterial({
+        color: 0x60a5fa, // 深灰色
+        transparent: true,
+        opacity: 0.5,    // 调试期稍微调高一点，确认能看见后再调低
+        side: THREE.DoubleSide,
+        shininess: 30,
+        depthWrite: false
+    });
+
+    const baseOuterW = innerWidth + wallThickness * 2;
+    const baseOuterH = innerHeight + wallThickness * 2;
+    const baseGeometry = new THREE.BoxGeometry(baseOuterW, baseOuterH, baseThickness);
+    const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+    
+    // 绝对居中对齐：X/Y 轴 position 设为 0
+    baseMesh.position.set(0, 0, -pcbThickness / 2 - baseThickness / 2 - 2);
+    baseMesh.receiveShadow = true;
+    baseMesh.userData.isEnclosure = true;
+    EnclosureGroup.add(baseMesh);
+
+    // 4. 创建四个支撑柱（Standoffs）
+    const standoffMaterial = new THREE.MeshPhongMaterial({
+        color: 0x9ca3af, // 改为银灰色，模拟金属铜柱，更显眼
+        transparent: true,
+        opacity: 0.8,
+        depthWrite: false
+    });
+    const standoffRadius = 8; // 稍微加粗一点方便看清
+    const standoffHeight = 24; // 稍微撑高一点
+    const standoffGeometry = new THREE.CylinderGeometry(standoffRadius, standoffRadius, standoffHeight, 16);
+
+const standoffPositions = [
+        { x: -400, y: -300 }, // 左前
+        { x: 400, y: -300 },  // 右前
+        { x: -400, y: 300 },  // 左后
+        { x: 400, y: 300 }    // 右后
+    ];
+
+    standoffPositions.forEach(pos => {
+        const standoff = new THREE.Mesh(standoffGeometry, standoffMaterial);
+        
+        // === 核心修复：将横躺的圆柱体竖起来！ ===
+        standoff.rotation.x = Math.PI / 2; 
+        
+        // Z 轴高度计算：PCB 底面往下走 半个柱子的高度
+        standoff.position.set(pos.x, pos.y, -pcbThickness / 2 - standoffHeight / 2);
+        standoff.userData.isEnclosure = true;
+        EnclosureGroup.add(standoff);
+    });
+
+    // 5. 创建半透明上盖 (拼装空心壳体)
+    const coverMaterial = new THREE.MeshPhongMaterial({
+        color: 0x60a5fa, // 工业浅蓝色
+        transparent: true,
+        opacity: 0.25,
+        side: THREE.DoubleSide,
+        shininess: 80,
+        depthWrite: true // 关闭深度写入，解决半透明渲染脏斑
+    });
+
+    const coverGroup = new THREE.Group();
+    const outerW = innerWidth + wallThickness * 2;
+    const outerH = innerHeight + wallThickness * 2;
+    
+    // 5.1 顶盖 (Roof)
+    const roofGeo = new THREE.BoxGeometry(outerW, outerH, coverThickness);
+    const roof = new THREE.Mesh(roofGeo, coverMaterial);
+    roof.position.set(0, 0, innerDepth + coverThickness / 2);
+    roof.userData.isEnclosure = true;
+    coverGroup.add(roof);
+
+    // 5.2 左侧壁
+    const leftWallGeo = new THREE.BoxGeometry(wallThickness, outerH, innerDepth);
+    const leftWall = new THREE.Mesh(leftWallGeo, coverMaterial);
+    leftWall.position.set(-innerWidth / 2 - wallThickness / 2, 0, innerDepth / 2);
+    leftWall.userData.isEnclosure = true;
+    coverGroup.add(leftWall);
+
+    // 5.3 右侧壁
+    const rightWallGeo = new THREE.BoxGeometry(wallThickness, outerH, innerDepth);
+    const rightWall = new THREE.Mesh(rightWallGeo, coverMaterial);
+    rightWall.position.set(innerWidth / 2 + wallThickness / 2, 0, innerDepth / 2);
+    rightWall.userData.isEnclosure = true;
+    coverGroup.add(rightWall);
+
+    // 5.4 前侧壁 (Y 负方向) - J1 开孔侧
+    // === J1 侧壁开孔逻辑 ===
+    // J1 位于 y:600 (2D坐标)，转换后 3D Y 坐标约为 -200，靠近前侧壁 (Y = -350)
+    if (j1Info && j1Info.nearEdge === 'front') {
+        // 创建带开孔的前侧壁：使用 CSG 或 分段侧壁
+        // 方案：分左右两段，中间留出 J1 伸出空间
+        const j1PortWidth = j1Info.w + 6; // 开孔宽度比 J1 宽 6mm
+        const j1PortHeight = j1Info.z + 4; // 开孔高度比 J1 高 4mm
+        const j1PortCenterX = j1Info.x; // J1 的 X 坐标
+        
+        // 左段：J1 左侧
+        const leftSegWidth = (innerWidth / 2 + j1PortCenterX) - j1PortWidth / 2;
+        if (leftSegWidth > 0) {
+            const leftSegGeo = new THREE.BoxGeometry(leftSegWidth, wallThickness, innerDepth);
+            const leftSeg = new THREE.Mesh(leftSegGeo, coverMaterial);
+            leftSeg.position.set(
+                -innerWidth / 2 + leftSegWidth / 2,
+                -innerHeight / 2 - wallThickness / 2,
+                innerDepth / 2
+            );
+            leftSeg.userData.isEnclosure = true;
+            coverGroup.add(leftSeg);
+        }
+        
+        // 右段：J1 右侧
+        const rightSegWidth = (innerWidth / 2 - j1PortCenterX) - j1PortWidth / 2;
+        if (rightSegWidth > 0) {
+            const rightSegGeo = new THREE.BoxGeometry(rightSegWidth, wallThickness, innerDepth);
+            const rightSeg = new THREE.Mesh(rightSegGeo, coverMaterial);
+            rightSeg.position.set(
+                innerWidth / 2 - rightSegWidth / 2,
+                -innerHeight / 2 - wallThickness / 2,
+                innerDepth / 2
+            );
+            rightSeg.userData.isEnclosure = true;
+            coverGroup.add(rightSeg);
+        }
+        
+        // 上段：J1 上方（开孔顶部到外壳顶部）
+        const topSegHeight = innerDepth - j1PortHeight;
+        if (topSegHeight > 0) {
+            const topSegGeo = new THREE.BoxGeometry(j1PortWidth, wallThickness, topSegHeight);
+            const topSeg = new THREE.Mesh(topSegGeo, coverMaterial);
+            topSeg.position.set(
+                j1PortCenterX,
+                -innerHeight / 2 - wallThickness / 2,
+                innerDepth - topSegHeight / 2
+            );
+            topSeg.userData.isEnclosure = true;
+            coverGroup.add(topSeg);
+        }
+        
+        console.log('[MCAD] J1 侧壁开孔已生成，位置: 前侧壁，开孔宽度:', j1PortWidth, 'mm');
+    } else {
+        // 无开孔：完整前侧壁
+        const frontWallGeo = new THREE.BoxGeometry(innerWidth, wallThickness, innerDepth);
+        const frontWall = new THREE.Mesh(frontWallGeo, coverMaterial);
+        frontWall.position.set(0, -innerHeight / 2 - wallThickness / 2, innerDepth / 2);
+        frontWall.userData.isEnclosure = true;
+        coverGroup.add(frontWall);
+    }
+
+    // 5.5 后侧壁 (Y 正方向)
+    const backWallGeo = new THREE.BoxGeometry(innerWidth, wallThickness, innerDepth);
+    const backWall = new THREE.Mesh(backWallGeo, coverMaterial);
+    backWall.position.set(0, innerHeight / 2 + wallThickness / 2, innerDepth / 2);
+    backWall.userData.isEnclosure = true;
+    coverGroup.add(backWall);
+
+    // 将组装好的空心上盖加入总装配组
+    coverGroup.userData.isEnclosure = true;
+    EnclosureGroup.add(coverGroup);
+
+    // 6. 将装配组添加到场景
+    scene.add(EnclosureGroup);
+
+    // 7. 初始状态：默认隐藏
+    EnclosureGroup.visible = false;
+
+    console.log('[MCAD] 机械外壳已生成（基于 PCB 板框基准）', {
+        pcbSize: `${PCB_PHYSICAL_W} x ${PCB_PHYSICAL_H}`,
+        innerCavity: `${innerWidth.toFixed(1)} x ${innerHeight.toFixed(1)} x ${innerDepth.toFixed(1)}`,
+        maxComponentZ: maxZ.toFixed(1),
+        j1Opening: j1Info ? `前侧壁 @ X=${j1Info.x.toFixed(1)}` : '无'
+    });
+}
+
+// === 监听外壳显隐切换事件 ===
+bus.on('TOGGLE_MECHANICAL_ENCLOSURE', () => {
+    if (EnclosureGroup) {
+        EnclosureGroup.visible = !EnclosureGroup.visible;
+        console.log('[MCAD] 外壳可见性切换为:', EnclosureGroup.visible);
     }
 });

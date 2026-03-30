@@ -22,6 +22,7 @@ export function initToolbar() {
     const toolZoomOut = document.getElementById('tool-zoom-out');
     const toolReset = document.getElementById('tool-reset');
     const toolSplitView = document.getElementById('tool-split-view');
+    const toolEnclosure = document.getElementById('tool-enclosure');
     const toolToggleAnnotations = document.getElementById('tool-toggle-annotations');
     const canvasWrapper = document.getElementById('canvas-wrapper');
 
@@ -110,8 +111,13 @@ export function initToolbar() {
     // 监听视图切换，同步工具栏 UI（控制 3D 分屏按钮显隐）
     bus.on('VIEW_CHANGED', (viewType) => {
         const toolSplitView = document.getElementById('tool-split-view');
+        const toolEnclosure = document.getElementById('tool-enclosure');
         if (toolSplitView) {
             toolSplitView.classList.toggle('hidden', viewType !== 'pcb');
+        }
+        // 外壳按钮随分屏按钮同步显隐
+        if (toolEnclosure) {
+            toolEnclosure.classList.toggle('hidden', viewType !== 'pcb');
         }
         // 新增：如果切回原理图且当前 3D 处于开启状态，则强制关闭
         if (viewType === 'schematic' && AppState.isSplitViewActive) {
@@ -208,6 +214,28 @@ export function initToolbar() {
             }
         });
     }
+
+    // === 新增：机械外壳切换按钮 ===
+    let isEnclosureVisible = false;
+    
+    if (toolEnclosure) {
+        toolEnclosure.addEventListener('click', () => {
+            isEnclosureVisible = !isEnclosureVisible;
+            
+            // 更新按钮 UI 状态
+            if (isEnclosureVisible) {
+                toolEnclosure.classList.add('text-blue-600', 'bg-blue-50');
+                toolEnclosure.classList.remove('text-gray-500', 'hover:bg-gray-50');
+            } else {
+                toolEnclosure.classList.remove('text-blue-600', 'bg-blue-50');
+                toolEnclosure.classList.add('text-gray-500', 'hover:bg-gray-50');
+            }
+            
+            // 通过事件总线发送切换指令
+            bus.emit('TOGGLE_MECHANICAL_ENCLOSURE');
+        });
+    }
+    // ===================================
 
     // 初始化默认工具模式 UI
     setToolModeUI(ToolMode.SELECT);
