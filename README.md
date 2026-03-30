@@ -63,12 +63,9 @@
  📸 界面预览 (Screenshots)
  |                    2D/3D 机电协同双向联动                    |                     沉浸式图纸批注与预警                     |
 | :----------------------------------------------------------: | :----------------------------------------------------------: |
-| <img width="400" src="https://github.com/user-attachments/assets/0269604b-60e9-48a3-bd48-e5c5876df9e2" /> | <img width="400" src="https://github.com/user-attachments/assets/4d3741ba-bb19-465b-b7dc-7fe44f25b4d6" />
- |
+| <img width="400" src="https://github.com/user-attachments/assets/0269604b-60e9-48a3-bd48-e5c5876df9e2" /> | <img width="400" src="https://github.com/user-attachments/assets/4d3741ba-bb19-465b-b7dc-7fe44f25b4d6" />|
 |                 **智能版本差异 (Diff) 呈现**                 |                  **一键生成 PDF 评审报告**                   |
-| <img width="400" src="https://github.com/user-attachments/assets/e816e7ff-81fa-41f5-998a-fdf3470056bc" />
- | <img width="400" src="https://github.com/user-attachments/assets/2983338d-ad92-4230-be16-aec28c90670f" />
- |
+| <img width="400" src="https://github.com/user-attachments/assets/e816e7ff-81fa-41f5-998a-fdf3470056bc" />| <img width="400" src="https://github.com/user-attachments/assets/2983338d-ad92-4230-be16-aec28c90670f" />|
 
 
 ## 🚀 快速启动
