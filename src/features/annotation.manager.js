@@ -197,12 +197,35 @@ function showAnnotationInputPanel(annotationBox) {
         panel.remove();
     });
 
+    // === 核心修复：引入带视觉反馈的必填性校验 ===
+    const textInput = panel.querySelector('#annotation-text');
+
     panel.querySelector('#annotation-save').addEventListener('click', () => {
-        const text = panel.querySelector('#annotation-text').value.trim();
+        const text = textInput.value.trim();
+
         if (text) {
+            // 校验通过：正常保存并关闭面板
             saveAnnotation(annotationBox, text);
+            panel.remove();
+        } else {
+            // 校验失败：拦截保存，输入框标红并聚焦
+            textInput.classList.remove('border-gray-200');
+            textInput.classList.add('border-red-500', 'ring-red-500');
+            textInput.placeholder = '评审意见不能为空！';
+            textInput.focus();
+
+            // 如果全局 Toast 存在，也可以在此处调用抛出提示 (可选)
+            if (window.showToast) {
+                window.showToast('请输入评审意见后再保存', 'warning');
+            }
         }
-        panel.remove();
+    });
+
+    // 体验优化：当用户重新开始输入时，自动清除红色警告样式
+    textInput.addEventListener('input', () => {
+        textInput.classList.remove('border-red-500', 'ring-red-500');
+        textInput.classList.add('border-gray-200');
+        textInput.placeholder = '请输入评审意见...';
     });
 }
 
