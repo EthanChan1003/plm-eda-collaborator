@@ -122,58 +122,65 @@ function renderIdxPanel(container) {
                                             
                                 // === 核心修复 3：读取实时的全局批注池，确保探讨数量动态更新 ===
                                 const allAnnots = window.currentAnnotations || presetAnnotations;
-                                const linkedAnnotations = allAnnots.filter(a => a.linkedIdxId === tx.id || a.linkedIdxId === ref);
+                                // === Bug 修复：使用 detail.id 作为关联键，而不是 tx.id 或 ref ===
+                                // detail.id 是每条建议的唯一标识符（如 'IDX-U3-001'），这样才能精确匹配到特定的那条建议
+                                const detailId = detail.id || `${tx.id}-${ref}`; // 兼容没有 id 的 detail
+                                const linkedAnnotations = allAnnots.filter(a => a.linkedIdxId === detailId);
                                 const openLinkedCount = linkedAnnotations.filter(a => a.status === 'open').length;
                     
                                 return `
-                                <div class="detail-item p-3 bg-gray-50 rounded border border-gray-200 cursor-pointer transition-all duration-200 mb-2" data-ref="${ref}" data-txid="${tx.id}" data-idx="${idx}">
-                                    <div class="flex justify-between items-start mb-1">
-                                        <span class="font-bold text-gray-800">${ref}</span>
-                                        <span class="text-xs px-1.5 py-0.5 rounded ${tx.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}">${tx.status === 'pending' ? '待处理' : '已固化'}</span>
+                                <div class="detail-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200" data-ref="${ref}" data-txid="${tx.id}" data-idx="${idx}">
+                                    <!-- Layer 1: 基础信息区 -->
+                                    <div class="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-sm font-bold text-gray-800">${ref}</span>
+                                        </div>
+                                        <span class="text-xs px-2 py-1 rounded-full ${tx.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'} font-medium">
+                                            ${tx.status === 'pending' ? '待处理' : '已固化'}
+                                        </span>
                                     </div>
-                                    <p class="text-xs text-gray-600 mb-2">${tx.desc || detail.desc}</p>
-                                    <div class="text-xs font-mono text-gray-500 bg-white p-1.5 rounded border border-gray-100 mb-2">
-                                        ${detail.oldPos ? `X: ${detail.oldPos.x} &rarr; ${detail.newPos.x}<br>Y: ${detail.oldPos.y} &rarr; ${detail.newPos.y}` : `变更详情见 3D 视图`}
+                                    <!-- Layer 2: 变更详情区 -->
+                                    <div class="px-4 py-3">
+                                        <p class="text-sm text-gray-600 mb-3">${tx.desc || detail.desc || '未提供变更原因'}</p>
+                                        ${detail.oldPos ? `
+                                            <div class="bg-gray-50 rounded p-2 font-mono text-xs border border-gray-200">
+                                                <div>X: ${detail.oldPos.x} → ${detail.newPos.x}</div>
+                                                <div>Y: ${detail.oldPos.y} → ${detail.newPos.y}</div>
+                                            </div>
+                                        ` : `
+                                            <div class="text-xs text-gray-400 italic">变更详情见 3D 视图</div>
+                                        `}
                                     </div>
                                                 
-                                    <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
-                                        <div class="text-xs text-blue-600 font-medium">
+                                    <!-- Layer 3: 探讨状态区 -->
+                                    <div class="px-4 pb-3">
+                                        <div class="text-xs flex items-center ${linkedAnnotations.length > 0 ? 'text-blue-600 font-medium' : 'text-gray-400'}">
+                                            <i class="fas fa-comment-dots mr-1"></i>
                                             ${linkedAnnotations.length > 0 ? 
-                                                `<i class="fas fa-comment-dots mr-1"></i> ${openLinkedCount} 条待解决探讨` : 
-                                                `<span class="text-gray-400">暂无探讨</span>`}
+                                                `${openLinkedCount} 条待解决探讨` : 
+                                                `暂无探讨`}
                                         </div>
-                                        ${tx.status === 'pending' ? `
-                                            <button class="btn-link-annotation px-2 py-1 text-xs bg-white border border-blue-300 rounded text-blue-700 hover:bg-blue-50 transition shadow-sm" title="针对此提议添加评审意见" data-txid="${tx.id}" data-ref="${ref}">
-                                                <i class="fas fa-thumbtack"></i> 添加批注
-                                            </button>
-                                        ` : ''}
                                     </div>
-                    
+                                    
+                                    <!-- Layer 4: 卡片操作底栏 (Action Bar) -->
                                     ${tx.status === 'pending' ? `
-                                    <div class="mt-3 p-2 bg-slate-100 border border-dashed border-slate-300 rounded relative group">
-                                        <div class="absolute -top-2 right-2 bg-slate-100 text-slate-400 text-[10px] px-1 font-mono">Mock ECAD Sync</div>
-                                        <div class="flex justify-between items-center">
-                                            <span class="text-xs text-slate-500"><i class="fas fa-laptop-code mr-1"></i>模拟本地工程师同步</span>
-                                            <button class="btn-simulate-accept px-2 py-1 text-xs bg-white border border-emerald-300 rounded text-emerald-700 hover:bg-emerald-50 transition shadow-sm" title="模拟本地软件接受此提议并生成 Response" data-txid="${tx.id}">
-                                                <i class="fas fa-check"></i> 固化同步
-                                            </button>
+                                        <div class="px-4 py-3 border-t border-gray-200 bg-gray-50/50">
+                                            <div class="flex justify-end space-x-2">
+                                                <button class="btn-load-preview px-3 py-1.5 text-xs bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm font-medium" title="加载此提议的预览效果" data-txid="${tx.id}" data-ref="${ref}">
+                                                    加载预览
+                                                </button>
+                                                <button class="btn-add-annotation px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm font-medium flex items-center" title="针对此提议添加评审意见" data-txid="${tx.id}" data-ref="${ref}" data-detail-id="${detail.id || `${tx.id}-${ref}`}">
+                                                    添加批注
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
                                     ` : ''}
+                                    
                                 </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    ` : ''}
-                    
-                    <!-- 预览提示 -->
-                    ${tx.status === 'pending' ? `
-                        <div class="flex items-center justify-end space-x-2 mt-3 pt-2 border-t border-gray-100">
-                            <span class="text-xs text-gray-500 font-medium flex items-center">
-                                <i class="fas fa-eye mr-1 text-blue-500"></i>点击上方变更项可预览
-                            </span>
-                        </div>
-                    ` : ''}
+                            `;
+                        }).join('')}
+                    </div>
+                ` : ''}
                 </div>
             </div>
         `;
@@ -198,6 +205,10 @@ function renderIdxPanel(container) {
 
     container.innerHTML = html;
 
+    console.log('[DEBUG] Panel rendered, binding events...');
+    console.log('[DEBUG] Container:', container);
+    console.log('[DEBUG] Buttons found:', container.querySelectorAll('.btn-load-preview').length);
+    
     // 绑定事件
     bindIdxEvents(container);
 }
@@ -227,6 +238,14 @@ function cleanupAllPreviews() {
                 item.classList.remove('bg-blue-100', 'border-blue-300');
                 item.classList.add('bg-gray-50');
             });
+            
+            // 5. 重置按钮状态
+            document.querySelectorAll(`.btn-load-preview[data-ref="${ref}"]`).forEach(btn => {
+                btn.innerHTML = '加载预览';
+                btn.classList.replace('bg-amber-50', 'bg-white');
+                btn.classList.replace('text-amber-700', 'text-gray-700');
+                btn.classList.replace('border-amber-300', 'border-gray-300');
+            });
         }
     });
     
@@ -240,107 +259,179 @@ function cleanupAllPreviews() {
 }
 
 function bindIdxEvents(container) {
-    // 详情项悬浮/点击：定位并预览元器件
-    container.querySelectorAll('.detail-item').forEach(item => {
-        const ref = item.getAttribute('data-ref');
-        const idx = item.getAttribute('data-idx');
-        const txId = item.closest('.idx-item').getAttribute('data-idx-id');
+    // === 核心优化：使用事件委托避免重复绑定 ===
+    console.log('[DEBUG] bindIdxEvents called, container._idxEventsBound:', container._idxEventsBound);
+    
+    // === 核心修复：防止事件监听器重复绑定 ===
+    if (container._idxEventsBound) {
+        console.log('[IDX] Events already bound, skipping re-binding');
+        return;
+    }
+    container._idxEventsBound = true;
 
-        item.addEventListener('mouseenter', () => {
+    // === 辅助函数：应用预览残影效果 ===
+    const applyPreviewEffect = (ref, dx, dy, dz = 0) => {
+        document.querySelectorAll('.eda-component[data-ref="' + ref + '"]').forEach(comp => {
+            comp.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+            comp.style.opacity = '0.5';
+            comp.style.filter = 'drop-shadow(0 0 6px rgba(245, 158, 11, 0.8))';
+        });
+        bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx, dy, dz, isPreviewing: true });
+    };
+
+    // === 辅助函数：清理预览残影效果 ===
+    const clearPreviewEffect = (ref) => {
+        document.querySelectorAll('.eda-component[data-ref="' + ref + '"]').forEach(comp => {
+            comp.style.transform = '';
+            comp.style.opacity = '1';
+            comp.style.filter = '';
+        });
+        bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx: 0, dy: 0, dz: 0, isPreviewing: false });
+    };
+
+    // 1. 详情项悬浮/点击：定位并预览元器件（事件委托）
+    container.addEventListener('mouseenter', (e) => {
+        const item = e.target.closest('.detail-item');
+        if (item) {
+            const ref = item.getAttribute('data-ref');
             if (typeof window.highlightComponent === 'function') window.highlightComponent(ref);
-        });
+        }
+    }, true); // 使用捕获阶段
 
-        item.addEventListener('mouseleave', () => {
+    container.addEventListener('mouseleave', (e) => {
+        const item = e.target.closest('.detail-item');
+        if (item) {
             if (typeof window.clearHighlight === 'function') window.clearHighlight();
-        });
+        }
+    }, true); // 使用捕获阶段
 
-        // 点击切换预览状态
-        item.addEventListener('click', () => {
+    container.addEventListener('click', (e) => {
+        // === 新增：专门针对【加载预览】按钮的交互逻辑 ===
+        const loadPreviewBtn = e.target.closest('.btn-load-preview');
+        console.log('[DEBUG] Click event, loadPreviewBtn:', loadPreviewBtn);
+        if (loadPreviewBtn) {
+            console.log('[DEBUG] Load preview button clicked, txId:', loadPreviewBtn.getAttribute('data-txid'), 'ref:', loadPreviewBtn.getAttribute('data-ref'));
+            // 1. 阻止事件冒泡，防止触发卡片外层的其他无关点击
+            e.stopPropagation();
+            
+            const txId = loadPreviewBtn.getAttribute('data-txid');
+            const ref = loadPreviewBtn.getAttribute('data-ref');
+            
+            // 2. 查找对应的事务数据
             const tx = transactions.find(t => t.id === txId);
-            if (!tx || tx.status !== 'pending') {
-                bus.emit('SHOW_TOAST', { message: '该协同记录已固化，仅支持高亮定位', type: 'info' });
-                return;
-            }
+            if (!tx) return;
+            const details = tx.details || [tx];
+            const detail = details.find(d => d.targetRef === ref);
+            if (!detail) return;
 
-            const detail = tx.details[idx];
+            // 3. 切换预览状态 (Toggle)
             const isPreviewing = !previewStates[ref];
             previewStates[ref] = isPreviewing;
 
-            // UI 状态反馈
+            // 4. UI 状态反馈：动态改变按钮的文字和样式
             if (isPreviewing) {
-                item.classList.add('bg-blue-100', 'border-blue-300');
-                item.classList.remove('bg-gray-50');
+                loadPreviewBtn.innerHTML = '取消预览';
+                loadPreviewBtn.classList.replace('bg-white', 'bg-amber-50');
+                loadPreviewBtn.classList.replace('text-gray-700', 'text-amber-700');
+                loadPreviewBtn.classList.replace('border-gray-300', 'border-amber-300');
                 
-                // === 核心优化 1：镜头自动追踪定位 (Auto-Focus & Locate) ===
-                const canvasTransform = document.getElementById('canvas-transform');
-                if (canvasTransform && detail.oldPos) {
-                    const targetScale = 1.8; // 放大系数，看得更清楚
-                    // 画布基准中心是 (500, 400)
-                    const targetTranslateX = (500 - detail.oldPos.x) * targetScale;
-                    const targetTranslateY = (400 - detail.oldPos.y) * targetScale;
-                
-                    canvasTransform.style.transition = 'transform 0.4s ease-out';
-                    updateCanvasState({
-                        scale: targetScale,
-                        translateX: targetTranslateX,
-                        translateY: targetTranslateY
-                    });
-                    bus.emit('CANVAS_STATE_CHANGED'); // 广播重绘
-                                
-                    // === 新增：向 EventBus 发送 LOCATE_COMPONENT 信号，实现 2D/3D 同步定位 ===
-                    bus.emit('LOCATE_COMPONENT', { 
-                        ref: ref, 
-                        targetX: detail.oldPos.x, 
-                        targetY: detail.oldPos.y,
-                        scale: targetScale 
-                    });
-                                
-                    setTimeout(() => {
-                        canvasTransform.style.transition = '';
-                    }, 400);
+                // 计算坐标和属性变更偏差 (兼容平移和高度调整)
+                let dx = 0, dy = 0, dz = 0;
+                if (detail.oldPos && detail.newPos) {
+                    dx = detail.newPos.x - detail.oldPos.x;
+                    dy = detail.newPos.y - detail.oldPos.y;
                 }
-                // =================================================
+                if (detail.action === 'PROP_CHANGE' && detail.oldVal && detail.newVal) {
+                    if (detail.newVal.z !== undefined && detail.oldVal.z !== undefined) {
+                        dz = detail.newVal.z - detail.oldVal.z;
+                    }
+                }
+                
+                // === 核心修复：立即应用残影效果，让用户立刻看到反馈 ===
+                applyPreviewEffect(ref, dx, dy, dz);
+                
+                // === 镜头自动追踪定位 (Auto-Focus) - 异步执行，不阻塞残影显示 ===
+                if (detail.oldPos) {
+                    const canvasTransform = document.getElementById('canvas-transform');
+                    if (canvasTransform) {
+                        const targetScale = 1.8;
+                        const targetTranslateX = (500 - detail.oldPos.x) * targetScale;
+                        const targetTranslateY = (400 - detail.oldPos.y) * targetScale;
 
+                        canvasTransform.style.transition = 'transform 0.4s ease-out';
+                        updateCanvasState({
+                            scale: targetScale,
+                            translateX: targetTranslateX,
+                            translateY: targetTranslateY
+                        });
+                        bus.emit('CANVAS_STATE_CHANGED');
+                        
+                        // === 新增：同步聚焦 3D 视图 ===
+                        bus.emit('LOCATE_COMPONENT', {
+                            ref: ref,
+                            targetX: detail.oldPos.x,
+                            targetY: detail.oldPos.y,
+                            scale: targetScale
+                        });
+                        
+                        setTimeout(() => {
+                            canvasTransform.style.transition = '';
+                        }, 400);
+                    }
+                }
             } else {
-                item.classList.remove('bg-blue-100', 'border-blue-300');
-                item.classList.add('bg-gray-50');
+                loadPreviewBtn.innerHTML = '加载预览';
+                loadPreviewBtn.classList.replace('bg-amber-50', 'bg-white');
+                loadPreviewBtn.classList.replace('text-amber-700', 'text-gray-700');
+                loadPreviewBtn.classList.replace('border-amber-300', 'border-gray-300');
+                
+                // === 取消预览时，清理残影效果（内部会发送3D关闭信号） ===
+                clearPreviewEffect(ref);
             }
 
-            // 计算位移偏差
-            const dx = detail.newPos.x - detail.oldPos.x;
-            const dy = detail.newPos.y - detail.oldPos.y;
+            return;
+        }
 
-            // 1. 驱动 2D 引擎产生残影预览
-            document.querySelectorAll(`.eda-component[data-ref="${ref}"]`).forEach(comp => {
-                if (isPreviewing) {
-                    comp.style.transform = `translate(${dx}px, ${dy}px)`;
-                    comp.style.opacity = '0.5';
-                    comp.style.filter = 'drop-shadow(0 0 6px rgba(245, 158, 11, 0.8))'; // 琥珀色发光
-                } else {
-                    comp.style.transform = '';
-                    comp.style.opacity = '1';
-                    comp.style.filter = '';
+        // 2. 处理添加批注按钮点击 (Layer 4 Action Bar)
+        const addAnnotationBtn = e.target.closest('.btn-add-annotation');
+        if (addAnnotationBtn) {
+            console.log('[DEBUG] Add annotation button clicked:', { 
+                txId: addAnnotationBtn.getAttribute('data-txid'),
+                targetRef: addAnnotationBtn.getAttribute('data-ref'),
+                detailId: addAnnotationBtn.getAttribute('data-detail-id')
+            });
+            e.stopPropagation(); // 阻止事件冒泡，避免触发卡片主体点击
+            const txId = addAnnotationBtn.getAttribute('data-txid');
+            const targetRef = addAnnotationBtn.getAttribute('data-ref');
+            const detailId = addAnnotationBtn.getAttribute('data-detail-id');
+            
+            // 查找器件坐标
+            let x = 0, y = 0;
+            transactions.forEach(tx => {
+                const items = tx.details ? tx.details : [tx];
+                const detail = items.find(d => d.targetRef === targetRef);
+                if (detail && detail.oldPos) { 
+                    x = detail.oldPos.x; 
+                    y = detail.oldPos.y; 
+                    console.log('[DEBUG] Found coordinates:', { x, y });
                 }
             });
 
-            // 2. 驱动 3D 引擎产生残影预览
-            bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx, dy, isPreviewing });
-        });
-    });
+            // 发射添加批注事件
+            console.log('[DEBUG] Emitting AUTO_ADD_IDX_ANNOTATION event');
+            bus.emit('AUTO_ADD_IDX_ANNOTATION', { targetRef, txId, detailId, x, y });
+            return;
+        }
 
-    // === 新增：绑定【清除所有预览】按钮 ===
-    const btnClearAll = container.querySelector('#btn-clear-all-idx');
-    if (btnClearAll) {
-        btnClearAll.addEventListener('click', () => {
-            // 需要使用全局清理函数
+
+        const clearBtn = e.target.closest('#btn-clear-all-idx');
+        if (clearBtn) {
             cleanupAllPreviews();
-        });
-    }
+            return;
+        }
 
-    // === 新增：绑定【预览所有更改】按钮 ===
-    const btnPreviewAll = container.querySelector('#btn-preview-all-idx');
-    if (btnPreviewAll) {
-        btnPreviewAll.addEventListener('click', () => {
+        const previewBtn = e.target.closest('#btn-preview-all-idx');
+        if (previewBtn) {
             transactions.forEach(tx => {
                 // 只处理处于待定状态的记录
                 if (tx.status === 'pending') {
@@ -373,61 +464,21 @@ function bindIdxEvents(container) {
 
                         // 3. 驱动 3D 引擎产生残影预览
                         bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx, dy, isPreviewing: true });
+                        
+                        // 4. 更新按钮状态
+                        const btn = container.querySelector(`.btn-load-preview[data-ref="${ref}"]`);
+                        if (btn) {
+                            btn.innerHTML = '取消预览';
+                            btn.classList.replace('bg-white', 'bg-amber-50');
+                            btn.classList.replace('text-gray-700', 'text-amber-700');
+                            btn.classList.replace('border-gray-300', 'border-amber-300');
+                        }
                     });
                 }
             });
-        });
-    }
-
-    // 1. === 核心修复 2：触发自动打点 ===
-    container.querySelectorAll('.btn-link-annotation').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const txId = btn.getAttribute('data-txid');
-            const targetRef = btn.getAttribute('data-ref');
-            
-            // 去找这个器件的坐标
-            let x = 0, y = 0;
-            transactions.forEach(tx => {
-                const items = tx.details ? tx.details : [tx];
-                const detail = items.find(d => d.targetRef === targetRef);
-                if (detail && detail.oldPos) { x = detail.oldPos.x; y = detail.oldPos.y; }
-            });
-
-            // 告诉批注引擎去干活
-            bus.emit('AUTO_ADD_IDX_ANNOTATION', { targetRef, txId, x, y });
-        });
+        }
     });
 
-    // 2. === 核心修复 1：精确锁定目标器件，拒绝"一键全锅端" ===
-    container.querySelectorAll('.btn-simulate-accept').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const txId = btn.getAttribute('data-txid');
-            
-            // 采用更安全的查找逻辑，确保只改变对应 ID 的提议状态
-            let found = false;
-            transactions.forEach(tx => {
-                if (tx.id === txId && tx.status === 'pending') {
-                    tx.status = 'accepted'; found = true;
-                } else if (tx.details) {
-                    const detailTx = tx.details.find(d => d.id === txId && d.status === 'pending');
-                    if (detailTx) { detailTx.status = 'accepted'; found = true; }
-                }
-            });
-            
-            if (found) {
-                // 广播级联关闭信号
-                bus.emit('CASCADE_RESOLVE_ANNOTATIONS', txId);
-                if (window.showToast) window.showToast(`提议 ${txId} 已固化，关联探讨自动关闭`, 'success');
-                
-                // 清理并刷新
-                bus.emit('VIEW_CHANGED'); 
-                const tabContent = document.getElementById('tab-content');
-                if (tabContent) renderIdxPanel(tabContent);
-            }
-        });
-    });
 }
 
 function getTypeConfig(type) {

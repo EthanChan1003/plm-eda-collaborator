@@ -49,7 +49,9 @@ export function initToolbar() {
 
     // 监听外部强制打开请求（用于防呆设计）
     bus.on('FORCE_ANNOTATIONS_VISIBLE', () => {
+        console.log('[DEBUG] FORCE_ANNOTATIONS_VISIBLE triggered, isAnnotationsVisible:', isAnnotationsVisible);
         if (!isAnnotationsVisible && toolToggleAnnotations) {
+            console.log('[DEBUG] Clicking toolToggleAnnotations to enable annotations');
             toolToggleAnnotations.click(); // 模拟点击恢复开启
         }
     });

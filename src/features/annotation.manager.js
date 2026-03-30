@@ -20,6 +20,8 @@ let drawStartX, drawStartY;
 let currentDrawingType = AppState.currentDrawingType || 'schematic';
 // === 新增：当前正在绘制的批注形状 ===
 let currentAnnotationShape = 'rect';
+// === 新增：标志位，防止 IDX 触发的批注与手动绘制冲突 ===
+let isIdxTriggeredAnnotation = false;
 
 // === 修改：图钉批注的物理定义 (已整体缩小) ===
 const PIN_W = 16; // 图钉 DOM 容器宽度 (从 24 缩小至 16)
@@ -54,8 +56,10 @@ export function initAnnotationManager() {
 
     // === 新增：监听全局批注显隐信号 ===
     bus.on('TOGGLE_ANNOTATIONS_VISIBILITY', (isVisible) => {
+        console.log('[DEBUG] TOGGLE_ANNOTATIONS_VISIBILITY:', isVisible);
         document.querySelectorAll('.annotations-container').forEach(container => {
             container.style.display = isVisible ? '' : 'none';
+            console.log('[DEBUG] Container display set to:', isVisible ? 'visible' : 'none');
         });
         
         // 如果隐藏了批注，同时隐藏正在展示的弹窗气泡
@@ -102,10 +106,12 @@ export function initAnnotationManager() {
                 if (annotation.element) {
                     annotation.element.classList.add('annotation-resolved');
                     // 如果是图钉，把里面的红色 SVG 改成灰色
-                    const svgPath = annotation.element.querySelector('svg');
-                    if (svgPath) {
-                        svgPath.classList.remove('text-red-600');
-                        svgPath.classList.add('text-gray-400');
+                    if (annotation.shape === 'pin') {
+                        const svgElement = annotation.element.querySelector('svg');
+                        if (svgElement) {
+                            svgElement.classList.remove('text-red-600');
+                            svgElement.classList.add('text-gray-400');
+                        }
                     }
                 }
                 
@@ -129,12 +135,23 @@ export function initAnnotationManager() {
     });
 
     // === 核心修复 2：接收 IDX 的指令，自动在目标位置生成图钉并弹出输入框 ===
-    bus.on('AUTO_ADD_IDX_ANNOTATION', ({ targetRef, txId, x, y }) => {
+    bus.on('AUTO_ADD_IDX_ANNOTATION', ({ targetRef, txId, detailId, x, y }) => {
+        console.log('[DEBUG] AUTO_ADD_IDX_ANNOTATION received:', { targetRef, txId, detailId, x, y });
         bus.emit('FORCE_ANNOTATIONS_VISIBLE');
         
         // 暂存外键，供用户点击"保存"时读取
-        AppState.pendingLinkedIdxId = txId;
+        // === Bug 修复：使用 detailId 作为关联键，而不是 txId ===
+        // detailId 是每条建议的唯一标识符，这样可以精确匹配到特定的那条建议
+        AppState.pendingLinkedIdxId = detailId;
         currentAnnotationShape = 'pin';
+        // === 核心修复：设置标志位，防止 mouseup 处理器重复创建批注 ===
+        isIdxTriggeredAnnotation = true;
+        
+        console.log('[DEBUG] Current state before creating pin:', {
+            currentDrawingType,
+            currentAnnotationShape,
+            AppState_pendingLinkedIdxId: AppState.pendingLinkedIdxId
+        });
         
         // 1. 自动生成图钉 DOM
         const pin = document.createElement('div');
@@ -148,8 +165,29 @@ export function initAnnotationManager() {
         pin.style.background = 'none';
         pin.innerHTML = `<svg viewBox="0 0 24 32" class="w-full h-full text-red-600 transition-transform"><path d="M12 0C5.37 0 0 5.37 0 12c0 8.84 10.4 19.17 11.13 19.89.47.47 1.25.47 1.73 0C13.6 31.17 24 20.84 24 12c0-6.63-5.37-12-12-12zm0 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12z" fill="currentColor"/></svg>`;
         
-        const canvasTransform = document.getElementById('canvas-transform');
-        if (canvasTransform) canvasTransform.appendChild(pin);
+        // === 核心修复：添加到正确的 annotations-container 容器中 ===
+        console.log('[DEBUG] Current drawing type:', currentDrawingType);
+        const container = getAnnotationContainer(currentDrawingType);
+        console.log('[DEBUG] Container lookup:', { currentDrawingType, container: !!container });
+        
+        // 调试：检查所有可用的容器
+        const schematicContainer = document.querySelector('#canvas-schematic .annotations-container');
+        const pcbContainer = document.querySelector('#canvas-pcb .annotations-container');
+        console.log('[DEBUG] Available containers:', { 
+            schematic: !!schematicContainer, 
+            pcb: !!pcbContainer,
+            currentType: currentDrawingType
+        });
+        
+        if (container) {
+            container.appendChild(pin);
+            console.log('[DEBUG] Pin appended to container');
+        } else {
+            // fallback: 如果找不到容器，仍然添加到 canvas-transform
+            const canvasTransform = document.getElementById('canvas-transform');
+            console.log('[DEBUG] Fallback to canvas-transform:', !!canvasTransform);
+            if (canvasTransform) canvasTransform.appendChild(pin);
+        }
         
         // 2. 自动定位镜头到该器件
         const targetScale = 1.8;
@@ -158,9 +196,11 @@ export function initAnnotationManager() {
 
         // 3. 弹出输入面板并预填文案
         currentAnnotationBox = pin;
+        console.log('[DEBUG] Calling showAnnotationInputPanel');
         showAnnotationInputPanel(pin);
         setTimeout(() => {
             const textInput = document.getElementById('annotation-text');
+            console.log('[DEBUG] Text input element:', !!textInput);
             if (textInput) {
                 textInput.value = `针对 ${targetRef} 的评审意见：`;
                 textInput.focus();
@@ -263,6 +303,13 @@ function bindDrawingEvents() {
 
     canvasWrapper.addEventListener('mouseup', (e) => {
         if (!isDrawing || !currentAnnotationBox) return;
+        
+        // === 核心修复：如果是 IDX 触发的批注，跳过 mouseup 处理，避免重复创建 ===
+        if (isIdxTriggeredAnnotation) {
+            console.log('[DEBUG] Skipping mouseup handler for IDX-triggered annotation');
+            isIdxTriggeredAnnotation = false; // 重置标志
+            return;
+        }
 
         // === 核心修复 1：直接从 DOM 读取最终绘制的宽高，防止计算报错中断流程 ===
         const boxWidth = parseInt(currentAnnotationBox.style.width) || 0;
@@ -319,8 +366,30 @@ function bindDrawingEvents() {
  * 显示批注输入面板
  */
 function showAnnotationInputPanel(annotationBox) {
+    console.log('[DEBUG] showAnnotationInputPanel called with: ', { 
+        annotationBox: !!annotationBox,
+        canvasWrapper: !!canvasWrapper
+    });
+    
+    // === 核心修复：防止重复创建输入面板 ===
+    const existingPanel = canvasWrapper?.querySelector('.annotation-input-panel');
+    if (existingPanel) {
+        console.log('[DEBUG] Removing existing input panel before creating new one');
+        existingPanel.remove();
+    }
+    
+    if (!annotationBox || !canvasWrapper) {
+        console.error('[ERROR] Missing required elements for showAnnotationInputPanel');
+        return;
+    }
+    
     const rect = annotationBox.getBoundingClientRect();
     const wrapperRect = canvasWrapper.getBoundingClientRect();
+    
+    console.log('[DEBUG] Element positions:', { 
+        annotationBox_rect: rect,
+        canvasWrapper_rect: wrapperRect
+    });
 
     const panel = document.createElement('div');
     // 增加 z-50 确保面板在最上层
@@ -343,8 +412,13 @@ function showAnnotationInputPanel(annotationBox) {
     `;
 
     canvasWrapper.appendChild(panel);
+    console.log('[DEBUG] Input panel appended to canvasWrapper');
 
-    setTimeout(() => panel.querySelector('#annotation-text').focus(), 10);
+    setTimeout(() => {
+        const textInput = panel.querySelector('#annotation-text');
+        console.log('[DEBUG] Text input in panel:', !!textInput);
+        if (textInput) textInput.focus();
+    }, 10);
 
     panel.querySelector('#annotation-cancel').addEventListener('click', () => {
         annotationBox.remove();
@@ -660,8 +734,24 @@ window.toggleAnnotationStatus = function(id, version) {
     if (annotation.element) {
         if (annotation.status === 'resolved') {
             annotation.element.classList.add('annotation-resolved');
+            // 如果是图钉，把里面的红色 SVG 改成灰色
+            if (annotation.shape === 'pin') {
+                const svgElement = annotation.element.querySelector('svg');
+                if (svgElement) {
+                    svgElement.classList.remove('text-red-600');
+                    svgElement.classList.add('text-gray-400');
+                }
+            }
         } else {
             annotation.element.classList.remove('annotation-resolved');
+            // 如果是图钉，把里面的灰色 SVG 改回红色
+            if (annotation.shape === 'pin') {
+                const svgElement = annotation.element.querySelector('svg');
+                if (svgElement) {
+                    svgElement.classList.remove('text-gray-400');
+                    svgElement.classList.add('text-red-600');
+                }
+            }
         }
     }
     
