@@ -2,6 +2,8 @@
 import { bus } from '../core/event.bus.js';
 import { AppState } from '../core/state.js';
 import { idxTransactions } from '../data/mock.data.js';
+// === 新增：引入画布状态更新函数，用于镜头自动追踪 ===
+import { updateCanvasState } from '../core/engine.2d.js';
 
 let currentTab = AppState.currentTab;
 let transactions = [...idxTransactions];
@@ -170,6 +172,29 @@ function bindIdxEvents(container) {
             if (isPreviewing) {
                 item.classList.add('bg-blue-100', 'border-blue-300');
                 item.classList.remove('bg-gray-50');
+                
+                // === 核心修复 1：镜头自动追踪定位 (Auto-Focus) ===
+                const canvasTransform = document.getElementById('canvas-transform');
+                if (canvasTransform && detail.oldPos) {
+                    const targetScale = 1.8; // 放大系数，看得更清楚
+                    // 画布基准中心是 (500, 400)
+                    const targetTranslateX = (500 - detail.oldPos.x) * targetScale;
+                    const targetTranslateY = (400 - detail.oldPos.y) * targetScale;
+
+                    canvasTransform.style.transition = 'transform 0.4s ease-out';
+                    updateCanvasState({
+                        scale: targetScale,
+                        translateX: targetTranslateX,
+                        translateY: targetTranslateY
+                    });
+                    bus.emit('CANVAS_STATE_CHANGED'); // 广播重绘
+                    
+                    setTimeout(() => {
+                        canvasTransform.style.transition = '';
+                    }, 400);
+                }
+                // =================================================
+
             } else {
                 item.classList.remove('bg-blue-100', 'border-blue-300');
                 item.classList.add('bg-gray-50');
