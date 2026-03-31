@@ -319,24 +319,30 @@ export function renderNotesContent() {
         const textClass = isResolved ? 'line-through text-gray-400' : 'text-gray-600';
         const deleteBtn = isLatest ?
             `<i class="fas fa-trash text-xs cursor-pointer text-gray-400 hover:text-red-500 delete-btn" onclick="event.stopPropagation(); deleteAnnotation(${note.id}, '${note.version}')" title="删除批注"></i>` : '';
-        const shortTime = note.time ? note.time.substring(5) : '';
+        const shortTime = note.time || '';
         const safeAuthor = note.author || '系统';
         
+        // 【新增】：计算回复数和关联器件徽标
+        const replyCount = note.replies ? note.replies.length : 0;
+        const replyIndicator = replyCount > 0 ? `<span class="ml-2 text-[10px] text-blue-500 font-medium"><i class="fas fa-comment-dots"></i> ${replyCount} 回复</span>` : '';
+        const refBadge = note.targetRef ? `<span class="ml-1 text-[9px] px-1 bg-blue-50 text-blue-600 border border-blue-100 rounded">${note.targetRef}</span>` : '';
+
         notesHTML += `
-            <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass}" data-note-id="${note.id}" data-note-version="${note.version}">
+            <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass} hover:border-blue-300 transition-colors" data-note-id="${note.id}" data-note-version="${note.version}">
                 <div class="flex items-center justify-between mb-1.5">
-                    <div class="flex items-center space-x-1.5 min-w-0">
-                        <span class="flex-shrink-0 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">${note.id}</span>
+                    <div class="flex items-center min-w-0">
+                        <span class="flex-shrink-0 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold mr-1.5">${note.id}</span>
                         <span class="font-bold text-gray-800 text-xs truncate max-w-[60px]" title="${safeAuthor}">${safeAuthor}</span>
-                        <span class="flex-shrink-0 text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">${viewLabel}</span>
+                        ${refBadge}
                     </div>
                     <div class="flex items-center space-x-2 flex-shrink-0 ml-1">
                         <span class="text-[9px] text-gray-400">${shortTime}</span>
-                        <i class="fas ${statusIcon} text-xs cursor-pointer hover:opacity-70" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id}, '${note.version}')" title="${isResolved ? '已解决，点击恢复' : '待处理，点击解决'}"></i>
+                        <i class="fas ${statusIcon} text-xs cursor-pointer hover:scale-110 transition-transform" onclick="event.stopPropagation(); toggleAnnotationStatus(${note.id}, '${note.version}')" title="${isResolved ? '已解决，点击恢复' : '待处理，点击解决'}"></i>
                         ${deleteBtn}
                     </div>
                 </div>
                 <div class="text-xs ${textClass} leading-relaxed line-clamp-2">${note.text}</div>
+                ${replyIndicator ? `<div class="mt-1.5 flex justify-end">${replyIndicator}</div>` : ''}
             </div>
         `;
     });

@@ -272,10 +272,18 @@ function renderIdxPanel(container) {
                                 // === 核心修复 3：读取实时的全局批注池，确保探讨数量动态更新 ===
                                 const allAnnots = window.currentAnnotations || presetAnnotations;
                                 // === Bug 修复：使用 detail.id 作为关联键，而不是 tx.id 或 ref ===
-                                // detail.id 是每条建议的唯一标识符（如 'IDX-U3-001'），这样才能精确匹配到特定的那条建议
+                                // detail.id 是每条建议的唯一标识符（如 'IDX-U3-001'），这样可以精确匹配到特定的那条建议
                                 const detailId = detail.id || `${tx.id}-${ref}`; // 兼容没有 id 的 detail
-                                const linkedAnnotations = allAnnots.filter(a => a.linkedIdxId === detailId);
-                                const openLinkedCount = linkedAnnotations.filter(a => a.status === 'open').length;
+                                                                
+                                // === 核心升级：双向或集匹配（显式 linkedIdxId OR 隐式 targetRef） ===
+                                const linkedAnnotations = allAnnots.filter(a => {
+                                    if (a.status !== 'open') return false;
+                                    // 【核心变更】：显式 ID 匹配 OR 隐式 targetRef 匹配
+                                    const isExplicitlyLinked = a.linkedIdxId === detailId;
+                                    const isImplicitlyLinked = a.targetRef && a.targetRef === ref;
+                                    return isExplicitlyLinked || isImplicitlyLinked;
+                                });
+                                const openLinkedCount = linkedAnnotations.length;
                     
                                 return `
                                 <div class="detail-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200" data-ref="${ref}" data-txid="${tx.id}" data-idx="${idx}">
@@ -307,7 +315,7 @@ function renderIdxPanel(container) {
                                             <i class="fas fa-comment-dots mr-1"></i>
                                             ${linkedAnnotations.length > 0 ? 
                                                 `${openLinkedCount} 条待解决探讨` : 
-                                                `暂无探讨`}
+                                                `暂无待解决探讨`}
                                         </div>
                                     </div>
                                     
