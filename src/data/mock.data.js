@@ -102,7 +102,7 @@ export const presetAnnotations = [
         author: '工艺王', time: '2026-03-15 15:45'
     },
 
-    // ============ V2.1 演示高潮 ============
+    // ============ V2.1 最新版本 ============
     {
         id: 1, text: '【散热预警】MCU 底部建议增加 3x3 散热过孔阵列并开窗，当前高负载温升模拟达 65℃。', targetRef: 'U1', viewType: 'schematic', status: 'open', version: 'V2.1',
         centerX: 450, centerY: 400,
@@ -133,19 +133,19 @@ export const presetAnnotations = [
         centerX: 290, 
         centerY: 165, 
         shape: 'pin',
-        linkedIdxId: 'IDX-U3-001', // === 核心外键：与上方的 IDX 提议死死绑定 ===
+        linkedIdxId: 'IDX-U3-001', // === 核心外键：与上方的 IDX 提议绑定 ===
         author: '硬件张', 
         time: '2026-03-30 09:15'
     }
 ];
 
-// ============ V6.0 IDX (EDMD) 机电协同协商数据 ============
+// ============ IDX (EDMD) 机电协同数据 ============
 export const idxTransactions = [
     {
         id: 'IDX-001',
-        type: 'baseline',
-        sender: '李四',
         version: 'V1.0',
+        type: 'baseline',
+        sender: '张三',
         time: '2026-03-27 09:00',
         title: '初始基线推送 (Baseline)',
         status: 'applied',
@@ -153,34 +153,74 @@ export const idxTransactions = [
     },
     {
         id: 'IDX-002',
+        version: 'V1.0',
         type: 'propose',
         sender: '李四',
+        time: '2026-03-27 10:15',
+        title: '射频匹配电容位置调整',
+        status: 'pending',
+        details: [
+            {
+                action: 'MOVE',
+                targetRef: 'C3',
+                desc: '射频走线阻抗优化，建议缩短电容到管脚的距离',
+                oldPos: { x: 720, y: 290 },
+                newPos: { x: 700, y: 290 },
+                status: 'pending' // 在 V2.0 中 C3 被删，此条目将在 V2.1 视图中触发【隐式失效】
+            }
+        ]
+    },
+    {
+        id: 'IDX-003',
+        version: 'V2.0',
+        type: 'propose',
+        sender: '李四',
+        time: '2026-03-28 14:20',
+        title: '晶振布局优化提议 (增量)',
+        status: 'accepted', 
+        details: [
+            {
+                action: 'MOVE',
+                targetRef: 'Y1',
+                desc: '缩短时钟走线长度，减少 EMI 辐射',
+                oldPos: { x: 620, y: 290 },
+                newPos: { x: 600, y: 290 },
+                status: 'accepted' // 历史已闭环条目
+            }
+        ]
+    },
+    {
+        id: 'IDX-004',
         version: 'V2.1',
-        time: '2026-03-27 11:30',
-        title: '结构干涉调整建议',
-        status: 'pending', // pending, accepted, rejected
+        type: 'propose',
+        sender: '李四',
+        time: '2026-03-30 11:30',
+        title: '结构干涉与热布局调整建议',
+        status: 'pending',
         details: [
             {
                 action: 'MOVE',
                 targetRef: 'J1',
                 desc: '外壳干涉，建议上移避让',
                 oldPos: { x: 100, y: 600 },
-                newPos: { x: 100, y: 570 }
+                newPos: { x: 100, y: 570 },
+                status: 'pending'
             },
             {
                 action: 'MOVE',
                 targetRef: 'U2',
-                desc: '避让螺丝柱',
+                desc: '避让螺丝柱，建议向右移动',
                 oldPos: { x: 100, y: 140 },
-                newPos: { x: 120, y: 140 }
+                newPos: { x: 120, y: 140 },
+                status: 'pending'
             },
             {
-                id: 'IDX-U3-001', // 唯一标识符，作为关联外键
+                id: 'IDX-U3-001', 
                 action: 'MOVE',
                 targetRef: 'U3',
-                desc: '【热仿真预警】U3 芯片发热量过大，建议向左下方移动，远离主控区域。',
-                oldPos: { x: 300, y: 150 }, // 假设的原坐标
-                newPos: { x: 280, y: 180 }, // 建议的新坐标
+                desc: '【热仿真预警】U3 发热量过大，建议向左下方移动，远离主控区域。',
+                oldPos: { x: 300, y: 150 },
+                newPos: { x: 280, y: 180 },
                 status: 'pending'
             }
         ]

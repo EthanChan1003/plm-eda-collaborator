@@ -98,7 +98,7 @@ export function initLayoutManager() {
             const config = {
                 'tree': { title: '结构树', showSearch: true, showDiff: false, showBottom: false },
                 'diff': { title: '版本差异', showSearch: true, showDiff: true, showBottom: false },
-                'collab': { title: '协同记录', showSearch: false, showDiff: false, showBottom: false },
+                'collab': { title: '协同记录', showSearch: true, showDiff: false, showBottom: false },
                 'notes': { title: '批注列表', showSearch: true, showDiff: false, showBottom: true }
             }[tabKey];
 
@@ -110,6 +110,8 @@ export function initLayoutManager() {
                     searchInput.placeholder = '搜索位号 / 差异描述...';
                 } else if (tabKey === 'notes') {
                     searchInput.placeholder = '搜索批注内容...';
+                } else if (tabKey === 'collab') { // === 新增 ===
+                    searchInput.placeholder = '搜索提议内容 / 位号...';
                 }
             }
 

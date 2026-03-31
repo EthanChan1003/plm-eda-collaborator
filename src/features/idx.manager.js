@@ -7,6 +7,7 @@ import { idxTransactions, presetAnnotations, versionedComponentData } from '../d
 
 let currentTab = AppState.currentTab;
 let transactions = [...idxTransactions];
+let currentSearchQuery = '';
 
 export function initIdxManager() {
     const tabContent = document.getElementById('tab-content');
@@ -14,6 +15,32 @@ export function initIdxManager() {
         console.warn('IDX: tab-content 元素未找到');
         return;
     }
+
+    // === 新增：响应搜索框输入事件 ===
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            if (currentTab === 'collab') {
+                currentSearchQuery = e.target.value.toLowerCase().trim();
+                const tabContent = document.getElementById('tab-content');
+                if (tabContent) {
+                    tabContent._idxEventsBound = false; // 允许重新绑定事件
+                    renderIdxPanel(tabContent);
+                }
+            }
+        });
+    }
+
+    // === 新增：响应全局版本切换事件 ===
+    bus.on('VERSION_CHANGED', () => {
+        if (currentTab === 'collab') {
+            const tabContent = document.getElementById('tab-content');
+            if (tabContent) {
+                tabContent._idxEventsBound = false;
+                renderIdxPanel(tabContent);
+            }
+        }
+    });
 
     // 监听 Tab 切换，如果在 collab 页签，则渲染 IDX 面板并唤起 3D
     bus.on('TAB_CHANGED', (tabKey) => {
@@ -62,7 +89,10 @@ export function initIdxManager() {
     bus.on('ANNOTATIONS_UPDATED', () => {
         if (currentTab === 'collab') {
             const tabContent = document.getElementById('tab-content');
-            if (tabContent) renderIdxPanel(tabContent);
+            if (tabContent) {
+                tabContent._idxEventsBound = false; // 允许重新绑定事件
+                renderIdxPanel(tabContent);
+            }
         }
     });
 
@@ -182,6 +212,52 @@ export function initIdxManager() {
         console.log(`[IDX] ${targetRef} 接受提议闭环处理完成`);
     });
 
+    // === 沙箱控制台事件监听：拒绝提议 ===
+    bus.on('MOCK_ECAD_SYNC_REJECTED', ({ targetRef, txId, detailId }) => {
+        console.log('[IDX] 收到拒绝提议事件:', { targetRef, txId, detailId });
+        
+        // 1. 强制清理预览状态（拒绝则取消所有残影，坐标不发生变化）
+        if (previewStates[targetRef]) {
+            document.querySelectorAll(`.eda-component[data-ref="${targetRef}"]`).forEach(comp => {
+                comp.style.transform = '';
+                comp.style.opacity = '1';
+                comp.style.filter = '';
+            });
+            bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref: targetRef, dx: 0, dy: 0, isPreviewing: false });
+            previewStates[targetRef] = false;
+        }
+        
+        // 2. 更新数据层状态机
+        const tx = transactions.find(t => t.id === txId);
+        if (tx && tx.details) {
+            const detail = tx.details.find(d => (d.id || `${txId}-${d.targetRef}`) === detailId);
+            if (detail) detail.status = 'rejected';
+            
+            const hasPending = tx.details.some(d => d.status === 'pending');
+            if (!hasPending) {
+                tx.status = tx.details.every(d => d.status === 'rejected') ? 'rejected' : 'accepted';
+            }
+        }
+        
+        // 3. 级联闭环批注（拒绝也意味着该提议的讨论关闭）
+        bus.emit('CASCADE_RESOLVE_ANNOTATIONS_BY_REF', targetRef);
+        
+        // 4. UI 收敛与通知
+        if (currentTab === 'collab') {
+            const tabContent = document.getElementById('tab-content');
+            if (tabContent) {
+                tabContent._idxEventsBound = false;
+                renderIdxPanel(tabContent);
+            }
+        }
+        bus.emit('ANNOTATIONS_UPDATED');
+        bus.emit('IDX_DATA_REFRESH');
+        
+        if (window.showToast) {
+            window.showToast(`已拒绝针对 ${targetRef} 的结构调整提议，位置保持不变。`, 'warning');
+        }
+    });
+
     // === 沙箱控制台事件监听：重置所有测试数据 ===
     bus.on('SANDBOX:RESET_ALL', () => {
         console.log('[IDX] 收到沙箱重置事件');
@@ -219,6 +295,30 @@ export function initIdxManager() {
 }
 
 function renderIdxPanel(container) {
+    // === 新增：版本权重字典（用于比较先后顺序） ===
+    const vWeight = { 'V1.0': 1, 'V2.0': 2, 'V2.1': 3 };
+    const currentVWeight = vWeight[AppState.currentVersion] || 99;
+
+    // === 新增：应用搜索过滤 ===
+    const filteredTransactions = transactions.filter(tx => {
+        if (!currentSearchQuery) return true;
+        const q = currentSearchQuery;
+        const matchTitle = tx.title && tx.title.toLowerCase().includes(q);
+        const matchDesc = tx.details && tx.details.some(d => d.desc && d.desc.toLowerCase().includes(q));
+        const matchRef = tx.details && tx.details.some(d => d.targetRef && d.targetRef.toLowerCase().includes(q));
+        return matchTitle || matchDesc || matchRef;
+    });
+
+    if (filteredTransactions.length === 0) {
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                <i class="fas fa-search text-3xl mb-2 opacity-50"></i>
+                <span class="text-xs">无匹配的协同记录</span>
+            </div>
+        `;
+        return;
+    }
+
     if (transactions.length === 0) {
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center h-full text-gray-400">
@@ -231,12 +331,33 @@ function renderIdxPanel(container) {
 
     let html = '<div class="space-y-3 p-3">';
 
-    transactions.forEach(tx => {
+    filteredTransactions.forEach(tx => {
         const typeConfig = getTypeConfig(tx.type);
-        const statusConfig = getStatusConfig(tx.status);
+        
+        // === 新增：判断是否属于未来版本 ===
+        const txVWeight = vWeight[tx.version] || 0;
+        const isFuture = txVWeight > currentVWeight;
+
+        // 动态计算处理进度 (包含隐式失效检测)
+        const currentVersionData = versionedComponentData[AppState.currentVersion] || {};
+        const totalItems = tx.details ? tx.details.length : 0;
+        const processedItems = tx.details ? tx.details.filter(d => {
+            // 1. 显式处理（已接受/已拒绝）
+            if (d.status === 'accepted' || d.status === 'rejected') return true;
+            
+            // 2. 隐式失效处理（目标器件在当前版本中已物理消亡）
+            const isComponentAlive = !!currentVersionData[d.targetRef];
+            if (!isComponentAlive) return true; 
+            
+            return false;
+        }).length : 0;
+        
+        const isAllProcessed = totalItems > 0 && processedItems === totalItems;
+        const progressText = totalItems === 0 ? '无更改项' : (isAllProcessed ? '处理完毕' : `已处理 ${processedItems}/${totalItems}`);
+        const progressClass = isAllProcessed ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-blue-600 border border-blue-100';
 
         html += `
-            <div class="idx-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden" data-idx-id="${tx.id}">
+            <div class="idx-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden ${isFuture ? 'opacity-60' : ''}" data-idx-id="${tx.id}">
                 <!-- 头部信息 -->
                 <div class="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                     <div class="flex items-center space-x-2">
@@ -247,6 +368,9 @@ function renderIdxPanel(container) {
                         <span class="flex items-center ml-2 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-medium tracking-wide">
                             <i class="fas fa-code-branch opacity-60 mr-1 text-[9px]"></i>${tx.version || 'V1.0'}
                         </span>
+                        ${isFuture ? `<span class="flex items-center ml-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 text-[9px] font-medium border border-amber-200">
+                            <i class="fas fa-lock mr-1"></i>未来版本
+                        </span>` : ''}
                     </div>
                     <span class="text-[10px] text-gray-400">${tx.time}</span>
                 </div>
@@ -258,8 +382,8 @@ function renderIdxPanel(container) {
                             <i class="fas fa-user-circle text-gray-400"></i>
                             <span class="text-xs font-medium text-gray-700">${tx.sender}</span>
                         </div>
-                        <span class="text-[10px] px-2 py-0.5 rounded-full ${statusConfig.bgClass} ${statusConfig.textClass}">
-                            ${statusConfig.label}
+                        <span class="text-[10px] px-2 py-0.5 rounded-full ${progressClass} font-medium tracking-wide">
+                            ${progressText}
                         </span>
                     </div>
                     
@@ -301,8 +425,8 @@ function renderIdxPanel(container) {
                                         <div class="flex items-center space-x-2">
                                             <span class="text-sm font-bold text-gray-800">${ref}</span>
                                         </div>
-                                        <span class="text-xs px-2 py-1 rounded-full ${isObsolete ? 'bg-red-50 text-red-600 border border-red-100' : (detail.status === 'accepted' ? 'bg-green-100 text-green-700' : (tx.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'))} font-medium">
-                                            ${isObsolete ? '<i class="fas fa-ban mr-1"></i>已失效' : (detail.status === 'accepted' ? '已接受' : (tx.status === 'pending' ? '待处理' : '已固化'))}
+                                        <span class="text-xs px-2 py-1 rounded-full ${isObsolete ? 'bg-red-50 text-red-600 border border-red-100' : (detail.status === 'accepted' ? 'bg-green-100 text-green-700' : (detail.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'))} font-medium">
+                                            ${isObsolete ? '<i class="fas fa-ban mr-1"></i>已失效' : (detail.status === 'accepted' ? '已接受' : (detail.status === 'rejected' ? '已拒绝' : '待处理'))}
                                         </span>
                                     </div>
                                     <!-- Layer 2: 变更详情区 -->
@@ -330,14 +454,21 @@ function renderIdxPanel(container) {
                                     
                                     <!-- Layer 4: 卡片操作底栏 (Action Bar) -->
                                     <!-- 修复：基于 detail.status 而非 tx.status 决定是否显示按钮 -->
-                                    ${isObsolete ? `
+                                    ${isFuture ? `
+                                        <div class="px-4 py-3 border-t border-gray-200 bg-amber-50/50">
+                                            <div class="text-xs text-amber-600 flex items-center justify-center font-medium">
+                                                <i class="fas fa-lock mr-1"></i>
+                                                需切换至更高版本查看
+                                            </div>
+                                        </div>
+                                    ` : isObsolete ? `
                                         <div class="px-4 py-3 border-t border-gray-200 bg-red-50/50">
                                             <div class="text-xs text-red-600 flex items-center justify-center font-medium">
                                                 <i class="fas fa-exclamation-triangle mr-1"></i>
-                                                [跨版本失效] 目标元器件在当前版本已移除或替换
+                                                [失效] 目标元器件在新版本已移除或替换
                                             </div>
                                         </div>
-                                    ` : (detail.status !== 'accepted' && tx.status === 'pending') ? `
+                                    ` : (!detail.status || detail.status === 'pending') ? `
                                         <div class="px-4 py-3 border-t border-gray-200 bg-gray-50/50">
                                             <div class="flex justify-end space-x-2">
                                                 <button class="btn-load-preview px-3 py-1.5 text-xs bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm font-medium" title="加载此提议的预览效果" data-txid="${tx.id}" data-ref="${ref}">
@@ -346,6 +477,13 @@ function renderIdxPanel(container) {
                                                 <button class="btn-add-annotation px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm font-medium flex items-center" title="针对此提议添加评审意见" data-txid="${tx.id}" data-ref="${ref}" data-detail-id="${detailId}">
                                                     添加批注
                                                 </button>
+                                            </div>
+                                        </div>
+                                    ` : detail.status === 'rejected' ? `
+                                        <div class="px-4 py-3 border-t border-gray-200 bg-red-50/50">
+                                            <div class="text-xs text-red-600 flex items-center justify-center font-medium">
+                                                <i class="fas fa-times-circle mr-1"></i>
+                                                ${linkedAnnotations.length > 0 ? `${linkedAnnotations.length} 条探讨已关闭` : '提议已拒绝'}
                                             </div>
                                         </div>
                                     ` : `
@@ -369,20 +507,28 @@ function renderIdxPanel(container) {
 
     html += '</div>';
 
-    // === 修复：基于 detail.status 细粒度判断是否存在待处理项 ===
-    // 遍历所有 transactions 及其 details，只有存在至少一个 status !== 'accepted' 的 detail 时才显示底栏
-    let hasPendingDetail = false;
-    transactions.forEach(tx => {
-        if (tx.details) {
+    // === 修复：基于当前版本和存活状态，精准判断是否存在【可操作】的待处理项 ===
+    let hasPendingActionableDetail = false;
+    const currentVWeightForBottomBar = vWeight[AppState.currentVersion] || 99;
+    const currentVersionDataForBottomBar = versionedComponentData[AppState.currentVersion] || {};
+
+    filteredTransactions.forEach(tx => {
+        const txWeight = vWeight[tx.version] || 0;
+        const isFutureTx = txWeight > currentVWeightForBottomBar;
+        
+        if (!isFutureTx && tx.details) {
             tx.details.forEach(detail => {
-                if (detail.status !== 'accepted') {
-                    hasPendingDetail = true;
+                const isAlive = !!currentVersionDataForBottomBar[detail.targetRef];
+                const isPending = !detail.status || detail.status === 'pending';
+                // 只有非未来版本、器件存活且状态为待处理的，才算有效可操作项
+                if (isAlive && isPending) {
+                    hasPendingActionableDetail = true;
                 }
             });
         }
     });
     
-    if (hasPendingDetail) {
+    if (hasPendingActionableDetail) {
         html += `
             <div class="sticky bottom-0 left-0 right-0 p-3 bg-white border-t border-gray-200 flex justify-center space-x-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
                 <button id="btn-clear-all-idx" class="px-3 py-1.5 text-xs text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 rounded transition-colors shadow-sm">
@@ -627,15 +773,25 @@ function bindIdxEvents(container) {
 
         const previewBtn = e.target.closest('#btn-preview-all-idx');
         if (previewBtn) {
-            // === 修复：严格过滤，只对 pending 状态的 detail 应用残影 ===
+            const vWeight = { 'V1.0': 1, 'V2.0': 2, 'V2.1': 3 };
+            const currentVWeight = vWeight[AppState.currentVersion] || 99;
+            const currentVersionData = versionedComponentData[AppState.currentVersion] || {};
+
             transactions.forEach(tx => {
+                const txWeight = vWeight[tx.version] || 0;
+                const isFuture = txWeight > currentVWeight;
+
+                // 核心拦截 1：跳过未来版本的事务
+                if (isFuture) return; 
+
                 if (tx.details) {
                     tx.details.forEach(detail => {
                         const ref = detail.targetRef;
+                        const isAlive = !!currentVersionData[ref];
                         
-                        // === 核心过滤：跳过已固化的 detail ===
-                        if (detail.status === 'accepted') {
-                            console.log(`[IDX] 预览所有：跳过已固化的器件 ${ref}`);
+                        // 核心拦截 2：跳过已固化(accepted)、已拒绝(rejected)和已失效(obsolete/!isAlive)的器件
+                        if (detail.status === 'accepted' || detail.status === 'rejected' || !isAlive) {
+                            console.log(`[IDX] 预览所有：跳过不可操作的器件 ${ref}`);
                             return;
                         }
                         
@@ -657,7 +813,7 @@ function bindIdxEvents(container) {
                             const dx = detail.newPos.x - detail.oldPos.x;
                             const dy = detail.newPos.y - detail.oldPos.y;
 
-                            // 2. 驱动 2D 引擎产生残影预览（注意这里不调用 updateCanvasState 追踪镜头）
+                            // 2. 驱动 2D 引擎产生残影预览
                             document.querySelectorAll(`.eda-component[data-ref="${ref}"]`).forEach(comp => {
                                 comp.style.transform = `translate(${dx}px, ${dy}px)`;
                                 comp.style.opacity = '0.5';
@@ -668,7 +824,7 @@ function bindIdxEvents(container) {
                             bus.emit('TOGGLE_IDX_PREVIEW_3D', { ref, dx, dy, isPreviewing: true });
                         }
                         
-                        // 4. 更新按钮状态
+                        // 4. 更新卡片自身的单个预览按钮状态
                         const btn = container.querySelector(`.btn-load-preview[data-ref="${ref}"]`);
                         if (btn) {
                             btn.innerHTML = '取消预览';

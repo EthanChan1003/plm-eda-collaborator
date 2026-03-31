@@ -191,15 +191,19 @@ function renderIdxContent() {
     
     pendingProposals.forEach((proposal, index) => {
         html += `
-            <div class="pending-item" data-tx-id="${proposal.txId}" data-detail-id="${proposal.detailId}" data-ref="${proposal.targetRef}">
-                <div class="item-info">
-                    <span class="item-ref">${proposal.targetRef}</span>
-                    <span class="item-desc">${proposal.desc}</span>
-                    <span class="item-meta">${proposal.sender} · ${proposal.time}</span>
+            <div class="pending-item flex flex-col p-3 bg-white border border-gray-200 rounded-lg shadow-sm mb-2" data-tx-id="${proposal.txId}" data-detail-id="${proposal.detailId}" data-ref="${proposal.targetRef}">
+                <div class="item-info mb-2">
+                    <div class="font-bold text-gray-800 text-sm mb-1">${proposal.targetRef} <span class="text-xs font-normal text-gray-500 ml-1">(${proposal.txId})</span></div>
+                    <div class="text-xs text-gray-600 line-clamp-2">${proposal.desc}</div>
                 </div>
-                <button class="sync-btn" data-index="${index}">
-                    <i class="fas fa-sync-alt"></i>接受提议
-                </button>
+                <div class="flex justify-end space-x-2 border-t border-gray-100 pt-2 mt-1">
+                    <button class="action-btn reject-btn px-3 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded text-xs transition-colors flex items-center">
+                        <i class="fas fa-times mr-1"></i>拒绝
+                    </button>
+                    <button class="action-btn accept-btn px-3 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs transition-colors flex items-center shadow-sm">
+                        <i class="fas fa-check mr-1"></i>接受
+                    </button>
+                </div>
             </div>
         `;
     });
@@ -245,69 +249,60 @@ function bindPanelEvents(panel) {
 
 // ============ 视口内事件绑定 ============
 function bindViewportEvents(viewport) {
-    // 接受提议按钮
-    viewport.querySelectorAll('.sync-btn').forEach(btn => {
+    viewport.querySelectorAll('.accept-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const item = e.target.closest('.pending-item');
-            const txId = item.dataset.txId;
-            const detailId = item.dataset.detailId;
-            const targetRef = item.dataset.ref;
-            
-            await handleSync(btn, item, { txId, detailId, targetRef });
+            await handleSync(btn, item, 'MOCK_ECAD_SYNC_ACCEPTED', 'accepted');
+        });
+    });
+
+    viewport.querySelectorAll('.reject-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const item = e.target.closest('.pending-item');
+            await handleSync(btn, item, 'MOCK_ECAD_SYNC_REJECTED', 'rejected');
         });
     });
 }
 
-// ============ 接受提议处理 ============
-async function handleSync(btn, item, { txId, detailId, targetRef }) {
-    // 1. 按钮进入loading状态
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>同步中...';
-    btn.classList.add('loading');
+// ============ 接受/拒绝提议处理 ============
+async function handleSync(btn, item, eventName, targetStatus) {
+    const txId = item.dataset.txId;
+    const detailId = item.dataset.detailId;
+    const targetRef = item.dataset.ref;
 
-    // 2. 模拟网络延迟
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>处理中';
+    
+    // 禁用同卡片的另一个按钮
+    const siblings = item.querySelectorAll('.action-btn');
+    siblings.forEach(s => s.disabled = true);
+
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // 3. 发射接受提议事件（新的事件名称，核心载荷为 targetRef）
-    bus.emit('MOCK_ECAD_SYNC_ACCEPTED', { 
-        targetRef,
-        txId,
-        detailId
-    });
+    // 触发事件
+    bus.emit(eventName, { targetRef, txId, detailId });
 
-    // 4. 更新本地数据
+    // 更新沙箱本地数据状态
     const tx = localIdxTransactions.find(t => t.id === txId);
     if (tx && tx.details) {
         const detail = tx.details.find(d => (d.id || `${txId}-${d.targetRef}`) === detailId);
-        if (detail) {
-            detail.status = 'accepted';
-        }
-    }
-
-    // 5. 检查该事务下是否还有pending的detail
-    if (tx && tx.details) {
+        if (detail) detail.status = targetStatus;
+        
         const hasPending = tx.details.some(d => d.status === 'pending' || !d.status);
         if (!hasPending) {
-            tx.status = 'accepted';
+            tx.status = tx.details.every(d => d.status === 'rejected') ? 'rejected' : 'accepted';
         }
     }
 
-    // 6. 从列表中平滑移除
     item.style.transition = 'all 0.3s ease';
     item.style.opacity = '0';
     item.style.transform = 'translateX(20px)';
     
     setTimeout(() => {
         item.remove();
-        // 检查是否还有待处理项
         const viewport = document.querySelector('.panel-viewport');
         if (viewport && viewport.querySelectorAll('.pending-item').length === 0) {
-            viewport.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-inbox"></i>
-                    <p>当前无可模拟的挂起任务</p>
-                </div>
-            `;
+            viewport.innerHTML = `<div class="empty-state"><i class="fas fa-inbox"></i><p>当前无可模拟的挂起任务</p></div>`;
         }
     }, 300);
 }
