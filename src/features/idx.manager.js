@@ -3,7 +3,7 @@ import { bus } from '../core/event.bus.js';
 import { AppState } from '../core/state.js';
 import { updateCanvasState } from '../core/engine.2d.js';
 // === 新增：引入批注数据，用于查询关联状态 ===
-import { idxTransactions, presetAnnotations } from '../data/mock.data.js';
+import { idxTransactions, presetAnnotations, versionedComponentData } from '../data/mock.data.js';
 
 let currentTab = AppState.currentTab;
 let transactions = [...idxTransactions];
@@ -244,6 +244,9 @@ function renderIdxPanel(container) {
                             ${typeConfig.label}
                         </span>
                         <span class="text-xs font-mono text-gray-500">${tx.id}</span>
+                        <span class="flex items-center ml-2 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-medium tracking-wide">
+                            <i class="fas fa-code-branch opacity-60 mr-1 text-[9px]"></i>${tx.version || 'V1.0'}
+                        </span>
                     </div>
                     <span class="text-[10px] text-gray-400">${tx.time}</span>
                 </div>
@@ -284,16 +287,22 @@ function renderIdxPanel(container) {
                                     return isExplicitlyLinked || isImplicitlyLinked;
                                 });
                                 const openLinkedCount = linkedAnnotations.length;
+                                
+                                // === 核心新增：跨版本存活检测 (隐式失效判定) ===
+                                const currentVersionData = versionedComponentData[AppState.currentVersion] || {};
+                                const isComponentAlive = !!currentVersionData[ref];
+                                // 判定条件：器件在当前版本已不存在，且提议本身尚未被物理接受
+                                const isObsolete = !isComponentAlive && detail.status !== 'accepted';
                     
                                 return `
-                                <div class="detail-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200" data-ref="${ref}" data-txid="${tx.id}" data-idx="${idx}">
+                                <div class="detail-item bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200 ${isObsolete ? 'opacity-60 grayscale' : ''}" data-ref="${ref}" data-txid="${tx.id}" data-idx="${idx}">
                                     <!-- Layer 1: 基础信息区 -->
                                     <div class="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                                         <div class="flex items-center space-x-2">
                                             <span class="text-sm font-bold text-gray-800">${ref}</span>
                                         </div>
-                                        <span class="text-xs px-2 py-1 rounded-full ${detail.status === 'accepted' ? 'bg-green-100 text-green-700' : (tx.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700')} font-medium">
-                                            ${detail.status === 'accepted' ? '已接受' : (tx.status === 'pending' ? '待处理' : '已固化')}
+                                        <span class="text-xs px-2 py-1 rounded-full ${isObsolete ? 'bg-red-50 text-red-600 border border-red-100' : (detail.status === 'accepted' ? 'bg-green-100 text-green-700' : (tx.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'))} font-medium">
+                                            ${isObsolete ? '<i class="fas fa-ban mr-1"></i>已失效' : (detail.status === 'accepted' ? '已接受' : (tx.status === 'pending' ? '待处理' : '已固化'))}
                                         </span>
                                     </div>
                                     <!-- Layer 2: 变更详情区 -->
@@ -321,23 +330,29 @@ function renderIdxPanel(container) {
                                     
                                     <!-- Layer 4: 卡片操作底栏 (Action Bar) -->
                                     <!-- 修复：基于 detail.status 而非 tx.status 决定是否显示按钮 -->
-                                    ${(detail.status !== 'accepted' && tx.status === 'pending') ? `
+                                    ${isObsolete ? `
+                                        <div class="px-4 py-3 border-t border-gray-200 bg-red-50/50">
+                                            <div class="text-xs text-red-600 flex items-center justify-center font-medium">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                [跨版本失效] 目标元器件在当前版本已移除或替换
+                                            </div>
+                                        </div>
+                                    ` : (detail.status !== 'accepted' && tx.status === 'pending') ? `
                                         <div class="px-4 py-3 border-t border-gray-200 bg-gray-50/50">
                                             <div class="flex justify-end space-x-2">
                                                 <button class="btn-load-preview px-3 py-1.5 text-xs bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm font-medium" title="加载此提议的预览效果" data-txid="${tx.id}" data-ref="${ref}">
                                                     加载预览
                                                 </button>
-                                                <button class="btn-add-annotation px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm font-medium flex items-center" title="针对此提议添加评审意见" data-txid="${tx.id}" data-ref="${ref}" data-detail-id="${detail.id || `${tx.id}-${ref}`}">
+                                                <button class="btn-add-annotation px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm font-medium flex items-center" title="针对此提议添加评审意见" data-txid="${tx.id}" data-ref="${ref}" data-detail-id="${detailId}">
                                                     添加批注
                                                 </button>
                                             </div>
                                         </div>
                                     ` : `
-                                        <!-- 已接受的提议：显示只读提示 -->
                                         <div class="px-4 py-3 border-t border-gray-200 bg-green-50/50">
-                                            <div class="text-xs text-green-600 flex items-center justify-center">
+                                            <div class="text-xs text-green-600 flex items-center justify-center font-medium">
                                                 <i class="fas fa-check-circle mr-1"></i>
-                                                ${linkedAnnotations.length > 0 ? `${linkedAnnotations.length} 条探讨已关闭` : '提议已接受'}
+                                                ${linkedAnnotations.length > 0 ? `${linkedAnnotations.length} 条探讨已关闭` : '提议已接受并闭环'}
                                             </div>
                                         </div>
                                     `}

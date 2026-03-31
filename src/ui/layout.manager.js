@@ -152,5 +152,45 @@ export function initLayoutManager() {
     bus.emit('VIEW_CHANGED', currentDrawingType);
     bus.emit('TAB_CHANGED', currentTab);
 
+    // ============ 面板拖拽缩放自适应逻辑 ============
+    const leftPanel = document.getElementById('left-panel');
+    const resizer = document.getElementById('panel-resizer');
+    let isResizing = false;
+
+    if (leftPanel && resizer) {
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            // 防止拖拽时误选中文本或触发画布事件
+            document.body.style.userSelect = 'none';
+            document.body.style.pointerEvents = 'none'; 
+            leftPanel.style.pointerEvents = 'auto'; // 保持左侧面板响应
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            // 计算新宽度 (鼠标 X 坐标即为面板的新宽度)
+            let newWidth = e.clientX;
+            // 限制最小和最大拖拽范围
+            if (newWidth < 280) newWidth = 280;
+            const maxWidth = window.innerWidth * 0.5; // 最大不超过屏幕一半
+            if (newWidth > maxWidth) newWidth = maxWidth;
+            
+            leftPanel.style.width = newWidth + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                document.body.style.pointerEvents = '';
+                // 触发窗口 resize 事件，确保 3D/2D 画布能自适应铺满剩余空间
+                window.dispatchEvent(new Event('resize'));
+            }
+        });
+    }
+
     console.log('布局管理器初始化完成');
 }

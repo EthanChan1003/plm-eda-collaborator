@@ -144,7 +144,8 @@ export const idxTransactions = [
     {
         id: 'IDX-001',
         type: 'baseline',
-        sender: 'ECAD',
+        sender: '李四',
+        version: 'V1.0',
         time: '2026-03-27 09:00',
         title: '初始基线推送 (Baseline)',
         status: 'applied',
@@ -153,7 +154,8 @@ export const idxTransactions = [
     {
         id: 'IDX-002',
         type: 'propose',
-        sender: 'MCAD',
+        sender: '李四',
+        version: 'V2.1',
         time: '2026-03-27 11:30',
         title: '结构干涉调整建议',
         status: 'pending', // pending, accepted, rejected

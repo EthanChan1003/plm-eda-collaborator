@@ -45,7 +45,7 @@
     <main class="flex-1 flex overflow-hidden">
         
         <!-- 左侧控制面板 (Left Panel) -->
-        <aside class="w-[320px] flex flex-col bg-white border-r border-gray-200 shadow-sm z-20 overflow-hidden">
+        <aside id="left-panel" class="relative flex flex-col bg-white border-r border-gray-200 shadow-sm z-20 overflow-hidden" style="width: 320px; min-width: 280px; max-width: 50vw;">
             
             <!-- 面板顶部：结构树专有控制区 -->
             <div id="panel-top-search" class="border-b border-gray-100 bg-gray-50/50">
@@ -122,6 +122,8 @@
                     <i class="fas fa-check-circle mr-1.5"></i>提交评审
                 </button>
             </div>
+
+            <div id="panel-resizer" class="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-400 hover:opacity-50 z-50 transition-colors"></div>
         </aside>
 
         <!-- 右侧可视化画布 (Right Canvas) -->
