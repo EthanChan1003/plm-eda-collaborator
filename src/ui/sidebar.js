@@ -57,6 +57,17 @@ export function initSidebar() {
             tabContent.innerHTML = ''; // 未知页签清空
         }
     });
+
+    // === 核心修复：监听版本切换事件，重新渲染当前 Tab 内容 ===
+    bus.on('VERSION_CHANGED', () => {
+        if (currentTab === 'tree') {
+            renderTreeContent();
+        } else if (currentTab === 'diff') {
+            renderDiffContent();
+        } else if (currentTab === 'notes') {
+            renderNotesContent();
+        }
+    });
     
     // 初始渲染结构树
     renderTreeContent();
