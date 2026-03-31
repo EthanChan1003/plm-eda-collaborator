@@ -4,6 +4,9 @@ import { AppState } from '../core/state.js';
 import { presetAnnotations } from '../data/mock.data.js';
 import { canvasState, updateCanvasState } from '../core/engine.2d.js';
 
+// === 新增：当前登录用户模拟 ===
+const CURRENT_USER = '张三';
+
 // 批注数据存储
 let annotations = [...presetAnnotations];
 window.currentAnnotations = annotations; // === 新增：暴露实时批注数据池 ===
@@ -238,7 +241,7 @@ export function initAnnotationManager() {
         // 3. 弹出输入面板并预填文案
         currentAnnotationBox = pin;
         console.log('[DEBUG] Calling showAnnotationInputPanel');
-        showAnnotationInputPanel(pin);
+        showAnnotationInputPanel(pin, targetRef);
         setTimeout(() => {
             const textInput = document.getElementById('annotation-text');
             console.log('[DEBUG] Text input element:', !!textInput);
@@ -412,8 +415,47 @@ function bindDrawingEvents() {
         // === 统一的生命周期处理，保证 DOM 不残留 ===
         if (isValid) {
             isDrawing = false;
-            // 弹出输入面板
-            showAnnotationInputPanel(currentAnnotationBox);
+            
+            // === 核心修复 2：DOM 穿透防遮挡 (修复框选坐标偏移 Bug) ===
+            // 区分不同工具的取点策略：
+            // 1. 若为图钉，直接使用点击坐标
+            // 2. 若为框选，必须计算DOM框的屏幕几何中心，因为鼠标抬起点通常在器件外部的空白处
+            let targetX = e.clientX;
+            let targetY = e.clientY;
+            
+            if (currentAnnotationShape !== 'pin') {
+                const boxRect = currentAnnotationBox.getBoundingClientRect();
+                targetX = boxRect.left + boxRect.width / 2;
+                targetY = boxRect.top + boxRect.height / 2;
+            }
+            
+            // 1. 瞬间隐藏刚画好的批注框，防止它遮挡射线
+            if (currentAnnotationBox) {
+                currentAnnotationBox.style.display = 'none';
+            }
+            
+            // 2. 用修正后的目标中心点穿透获取元素
+            const elementsUnderTarget = document.elementsFromPoint(targetX, targetY);
+            
+            // 3. 恢复批注框显示
+            if (currentAnnotationBox) {
+                currentAnnotationBox.style.display = '';
+            }
+
+            // 4. 向上遍历寻找具有 data-ref 的 SVG 元器件节点
+            let targetRef = null;
+            for (const el of elementsUnderTarget) {
+                const comp = el.closest ? el.closest('[data-ref]') : null;
+                if (comp) {
+                    targetRef = comp.getAttribute('data-ref');
+                    break; // 找到了就立刻跳出
+                }
+            }
+            
+            console.log('[DEBUG] 穿透中心点(', targetX, ',', targetY, ') 捕获到的底层器件:', targetRef);
+
+            // 弹出输入面板，并将 targetRef 传递过去
+            showAnnotationInputPanel(currentAnnotationBox, targetRef);
             // 发送事件通知控制器
             bus.emit('ANNOTATION_DRAWN');
         } else {
@@ -428,7 +470,7 @@ function bindDrawingEvents() {
 /**
  * 显示批注输入面板
  */
-function showAnnotationInputPanel(annotationBox) {
+function showAnnotationInputPanel(annotationBox, targetRef = null) {
     console.log('[DEBUG] showAnnotationInputPanel called with: ', { 
         annotationBox: !!annotationBox,
         canvasWrapper: !!canvasWrapper
@@ -495,8 +537,8 @@ function showAnnotationInputPanel(annotationBox) {
         const text = textInput.value.trim();
 
         if (text) {
-            // 校验通过：正常保存并关闭面板
-            saveAnnotation(annotationBox, text);
+            // 校验通过：传入 targetRef
+            saveAnnotation(annotationBox, text, targetRef);
             panel.remove();
         } else {
             // 校验失败：拦截保存，输入框标红并聚焦
@@ -532,7 +574,7 @@ function getNextAnnotationId(version) {
 /**
  * 保存批注
  */
-function saveAnnotation(annotationBox, text) {
+function saveAnnotation(annotationBox, text, targetRef = null) {
     const annotationId = getNextAnnotationId(AppState.currentVersion);
 
     const badge = document.createElement('div');
@@ -548,8 +590,8 @@ function saveAnnotation(annotationBox, text) {
     const annotationData = {
         id: annotationId,
         text: text,
-        time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' }),
-        author: '张三',
+        time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        author: CURRENT_USER, // 替换原来的硬编码
         element: annotationBox,
         viewType: currentDrawingType,
         centerX: boxLeft + boxWidth / 2,
@@ -559,7 +601,11 @@ function saveAnnotation(annotationBox, text) {
         // === 新增：记录当前批注的形状 ===
         shape: currentAnnotationShape,
         // === 核心修复 4：将暂存的外键死死绑定到这条数据上 ===
-        linkedIdxId: AppState.pendingLinkedIdxId || null 
+        linkedIdxId: AppState.pendingLinkedIdxId || null,
+        // 【核心新增】：数据层关联到元器件与多轮对话支持
+        targetRef: targetRef || (AppState.pendingLinkedIdxId ? '联动器件' : null), 
+        // === 核心修复 3：初始化为空数组，防止后续 push 报错 ===
+        replies: [] 
     };
     
     // 用完即清理暂存状态
@@ -612,7 +658,7 @@ function highlightAnnotation(annotationId, version, breathing = false) {
 }
 
 /**
- * 显示批注气泡
+ * 显示批注气泡（支持多轮对话）
  */
 function showAnnotationBubble(annotationId, version) {
     const targetVersion = version || AppState.currentVersion;
@@ -620,36 +666,143 @@ function showAnnotationBubble(annotationId, version) {
     if (!annotation || !annotation.element || !annotationBubble) return;
 
     const rect = annotation.element.getBoundingClientRect();
-    const bubbleX = rect.right + 10;
-    const bubbleY = rect.top;
+    annotationBubble.style.left = (rect.right + 10) + 'px';
+    annotationBubble.style.top = rect.top + 'px';
 
-    annotationBubble.style.left = bubbleX + 'px';
-    annotationBubble.style.top = bubbleY + 'px';
+    const authorInitial = (annotation.author || '系').charAt(0);
+    const targetBadge = annotation.targetRef ? `<span class="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] rounded font-mono border border-blue-200"><i class="fas fa-link mr-1"></i>${annotation.targetRef}</span>` : '';
 
-    const authorName = annotation.author || '系统预置';
-    const authorInitial = authorName.charAt(0);
-    const noteTime = annotation.time || '';
+    // 构建历史回复列表 HTML (支持嵌套树形渲染)
+    let repliesHtml = '';
+    if (annotation.replies && annotation.replies.length > 0) {
+        repliesHtml = '<div class="mt-3 space-y-1.5 border-t border-gray-100 pt-2 max-h-48 overflow-y-auto custom-scrollbar">';
+        
+        // 递归渲染函数
+        const renderReplyTree = (parentId, depth = 0) => {
+            const children = annotation.replies.filter(r => (r.parentId || null) === parentId);
+            children.forEach(reply => {
+                // 为了兼容老数据，如果没有 replyId 则动态生成一个临时 ID
+                if (!reply.replyId) reply.replyId = generateReplyId();
+                
+                // 限制最大缩进层级为 3，防止 UI 溢出
+                const indentClass = depth > 0 ? `ml-${Math.min(depth * 4, 12)} border-l-2 border-gray-200 pl-2` : 'bg-gray-50 p-2 rounded';
+                const deleteBtnHtml = reply.author === CURRENT_USER 
+                    ? `<button class="text-gray-400 hover:text-red-500 transition-colors delete-reply-btn" data-reply-id="${reply.replyId}" title="删除此回复及跟帖"><i class="fas fa-trash"></i></button>` 
+                    : '';
 
+                repliesHtml += `
+                    <div class="text-xs ${indentClass} group relative">
+                        <div class="flex justify-between items-center text-[10px] text-gray-500 mb-1">
+                            <span class="font-bold text-gray-700">${reply.author}</span>
+                            <div class="flex items-center space-x-2">
+                                <span>${reply.time}</span>
+                                <button class="text-gray-400 hover:text-blue-500 transition-colors reply-to-btn" data-reply-id="${reply.replyId}" data-author="${reply.author}" title="回复 Ta"><i class="fas fa-reply"></i></button>
+                                ${deleteBtnHtml}
+                            </div>
+                        </div>
+                        <div class="text-gray-700 break-words leading-relaxed">${reply.text}</div>
+                    </div>
+                `;
+                // 递归渲染子节点
+                renderReplyTree(reply.replyId, depth + 1);
+            });
+        };
+        
+        // 从根节点(parentId = null)开始渲染
+        renderReplyTree(null, 0);
+        repliesHtml += '</div>';
+    }
+
+    // 组装整体气泡
     annotationBubble.innerHTML = `
-        <div class="flex items-start justify-between mb-2">
-            <div class="flex items-center">
-                <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold mr-2">${authorInitial}</div>
-                <div>
-                    <div class="text-xs font-medium text-gray-900">${authorName}</div>
-                    <div class="text-[10px] text-gray-500">${noteTime}</div>
+        <div class="w-64">
+            <div class="flex items-start justify-between mb-2">
+                <div class="flex items-center">
+                    <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold mr-2">${authorInitial}</div>
+                    <div>
+                        <div class="flex items-center text-xs font-medium text-gray-900">
+                            ${annotation.author || '系统'} ${targetBadge}
+                        </div>
+                        <div class="text-[10px] text-gray-500">${annotation.time}</div>
+                    </div>
                 </div>
+                <button id="close-bubble" class="text-gray-400 hover:text-gray-600 transition-colors ml-2">
+                    <i class="fas fa-times text-xs"></i>
+                </button>
             </div>
-            <button id="close-bubble" class="text-gray-400 hover:text-gray-600 transition-colors ml-2">
-                <i class="fas fa-times text-xs"></i>
-            </button>
+            
+            <div class="text-sm text-gray-700 leading-relaxed font-medium">${annotation.text}</div>
+            
+            ${repliesHtml}
+            
+            <div class="mt-3 flex gap-2">
+                <input type="text" id="reply-input-${annotation.id}" class="flex-1 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500" placeholder="回复此批注...">
+                <button id="reply-btn-${annotation.id}" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition">发送</button>
+            </div>
         </div>
-        <div class="text-sm text-gray-700 leading-relaxed">${annotation.text}</div>
     `;
 
-    const closeBtn = annotationBubble.querySelector('#close-bubble');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', hideAnnotationBubble);
-    }
+    // 绑定关闭事件
+    annotationBubble.querySelector('#close-bubble').addEventListener('click', hideAnnotationBubble);
+
+    // 绑定回复发送事件
+    const replyInput = annotationBubble.querySelector(`#reply-input-${annotation.id}`);
+    const replyBtn = annotationBubble.querySelector(`#reply-btn-${annotation.id}`);
+    
+    // 局部状态：当前正在回复的目标 ID，如果为 null 则是回复主批注
+    let activeParentId = null; 
+
+    // 绑定：点击特定回复的“回复”按钮
+    annotationBubble.querySelectorAll('.reply-to-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            activeParentId = e.currentTarget.getAttribute('data-reply-id');
+            const author = e.currentTarget.getAttribute('data-author');
+            replyInput.placeholder = `回复 @${author}：`;
+            replyInput.focus();
+        });
+    });
+
+    // 绑定：点击删除按钮 (级联删除)
+    annotationBubble.querySelectorAll('.delete-reply-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetReplyId = e.currentTarget.getAttribute('data-reply-id');
+            if(confirm('确定要删除这条回复及其下的所有回复吗？')) {
+                deleteReplyAndChildren(annotation, targetReplyId);
+                showAnnotationBubble(annotationId, version); // 重新渲染气泡
+                bus.emit('ANNOTATIONS_UPDATED'); // 通知侧边栏更新统计
+            }
+        });
+    });
+
+    const submitReply = () => {
+        const text = replyInput.value.trim();
+        if (text) {
+            if (!annotation.replies) annotation.replies = [];
+            
+            annotation.replies.push({
+                replyId: generateReplyId(),
+                parentId: activeParentId, // 绑定父节点
+                author: CURRENT_USER,
+                text: text,
+                time: new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+            });
+            
+            showAnnotationBubble(annotationId, version);
+            bus.emit('ANNOTATIONS_UPDATED');
+        }
+    };
+
+    replyBtn.addEventListener('click', submitReply);
+    replyInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') submitReply();
+    });
+    // 支持按 Esc 取消特定回复状态
+    replyInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Escape') {
+            activeParentId = null;
+            replyInput.placeholder = '回复此批注...';
+        }
+    });
 
     annotationBubble.classList.remove('hidden');
 }
@@ -661,6 +814,27 @@ function hideAnnotationBubble() {
     if (annotationBubble) {
         annotationBubble.classList.add('hidden');
     }
+}
+
+/**
+ * 生成唯一的回复 ID
+ */
+function generateReplyId() {
+    return 'reply_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+}
+
+/**
+ * 递归删除回复及其所有子回复
+ */
+function deleteReplyAndChildren(annotation, replyId) {
+    if (!annotation.replies) return;
+    // 找到所有以该 replyId 为父节点的子回复，递归删除
+    const children = annotation.replies.filter(r => r.parentId === replyId);
+    children.forEach(child => {
+        deleteReplyAndChildren(annotation, child.replyId);
+    });
+    // 删除自身
+    annotation.replies = annotation.replies.filter(r => r.replyId !== replyId);
 }
 
 /**
