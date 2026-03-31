@@ -38,7 +38,7 @@ function calculateVersionDiff(currentVersion, compareVersion) {
 // 同步画布图元显示状态
 function syncCanvasComponents() {
     const currentData = getCurrentComponentData();
-    const allRefs = ['U1', 'U2', 'R1', 'R2', 'R3', 'C1', 'C2', 'C3', 'C4', 'Y1', 'D1', 'J1'];
+    const allRefs = ['U1', 'U2', 'U3', 'R1', 'R2', 'R3', 'C1', 'C2', 'C3', 'C4', 'Y1', 'D1', 'J1'];
 
     allRefs.forEach(ref => {
         const components = document.querySelectorAll(`.eda-component[data-ref="${ref}"]`);
@@ -154,6 +154,7 @@ export function initVersionManager() {
 
         // 2. 通知其他模块更新 UI (此时拿到的才是最新鲜的 mockDiffData)
         bus.emit('VERSION_CHANGED', AppState.currentVersion);
+        bus.emit('DATA_UPDATED'); // === 核心修复：通知搜索、选择等模块同步数据 ===
         bus.emit('TAB_CHANGED', currentTab);
 
         // 3. Diff 页签需要额外处理高亮

@@ -210,6 +210,12 @@ export function initSelectionManager() {
         window.clearSelection(true); 
     });
 
+    // === 核心修复：监听版本切换事件，同步更新数据引用 ===
+    bus.on('DATA_UPDATED', () => {
+        mockComponentData = window.mockComponentData || {};
+        mockDiffData = window.mockDiffData || {};
+    });
+
     // 初始绑定
     setTimeout(() => bindSvgEvents(), 100);
 

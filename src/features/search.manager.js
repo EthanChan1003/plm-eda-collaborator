@@ -198,6 +198,13 @@ export function initSearchManager() {
     bus.on('DATA_UPDATED', () => {
         mockComponentData = window.mockComponentData || {};
         mockDiffData = window.mockDiffData || {};
+        // === 核心修复：版本切换时清空搜索框和下拉列表 ===
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        if (searchDropdown) {
+            searchDropdown.classList.add('hidden');
+        }
     });
 
     console.log('搜索管理器初始化完成');
