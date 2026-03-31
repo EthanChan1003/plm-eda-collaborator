@@ -160,24 +160,25 @@ function renderViewportContent() {
 function renderIdxContent() {
     // 筛选pending状态的提议
     const pendingProposals = [];
+        
+    // === 修复 1：只提取最新的一条 pending 事务进行模拟，避免历史版本（如 C3）污染沙箱 ===
+    const latestPendingTx = localIdxTransactions.slice().reverse().find(tx => tx.status === 'pending');
     
-    localIdxTransactions.forEach(tx => {
-        if (tx.status === 'pending' && tx.details) {
-            tx.details.forEach(detail => {
-                if (detail.status === 'pending' || !detail.status) {
-                    pendingProposals.push({
-                        txId: tx.id,
-                        detailId: detail.id || `${tx.id}-${detail.targetRef}`,
-                        targetRef: detail.targetRef,
-                        desc: detail.desc || '变更提议',
-                        sender: tx.sender,
-                        time: tx.time
-                    });
-                }
-            });
-        }
-    });
-
+    if (latestPendingTx && latestPendingTx.details) {
+        latestPendingTx.details.forEach(detail => {
+            if (detail.status === 'pending' || !detail.status) {
+                pendingProposals.push({
+                    txId: latestPendingTx.id,
+                    detailId: detail.id || `${latestPendingTx.id}-${detail.targetRef}`,
+                    targetRef: detail.targetRef,
+                    desc: detail.desc || '变更提议',
+                    sender: latestPendingTx.sender,
+                    time: latestPendingTx.time
+                });
+            }
+        });
+    }
+    
     if (pendingProposals.length === 0) {
         return `
             <div class="empty-state">
@@ -186,28 +187,32 @@ function renderIdxContent() {
             </div>
         `;
     }
-
-    let html = '<div class="pending-list">';
     
+    let html = '<div class="pending-list">';
+        
     pendingProposals.forEach((proposal, index) => {
+        // === 修复 3：使用 !block 和 !p-0 覆盖原 CSS 的 flex 居中，重新使用 Tailwind 布局 ===
         html += `
-            <div class="pending-item flex flex-col p-3 bg-white border border-gray-200 rounded-lg shadow-sm mb-2" data-tx-id="${proposal.txId}" data-detail-id="${proposal.detailId}" data-ref="${proposal.targetRef}">
-                <div class="item-info mb-2">
-                    <div class="font-bold text-gray-800 text-sm mb-1">${proposal.targetRef} <span class="text-xs font-normal text-gray-500 ml-1">(${proposal.txId})</span></div>
-                    <div class="text-xs text-gray-600 line-clamp-2">${proposal.desc}</div>
+            <div class="pending-item !block !p-0 bg-white border border-gray-200 rounded-lg shadow-sm mb-3 overflow-hidden" data-tx-id="${proposal.txId}" data-detail-id="${proposal.detailId}" data-ref="${proposal.targetRef}">
+                <div class="p-3 text-left">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="font-bold text-gray-800 text-sm">${proposal.targetRef}</span>
+                        <span class="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-mono">${proposal.txId}</span>
+                    </div>
+                    <div class="text-xs text-gray-600 line-clamp-2 leading-relaxed">${proposal.desc}</div>
                 </div>
-                <div class="flex justify-end space-x-2 border-t border-gray-100 pt-2 mt-1">
-                    <button class="action-btn reject-btn px-3 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded text-xs transition-colors flex items-center">
+                <div class="flex justify-end space-x-2 bg-gray-50 border-t border-gray-100 px-3 py-2">
+                    <button class="action-btn reject-btn px-3 py-1.5 bg-white text-red-600 border border-red-200 hover:bg-red-50 rounded text-xs transition-colors flex items-center shadow-sm">
                         <i class="fas fa-times mr-1"></i>拒绝
                     </button>
-                    <button class="action-btn accept-btn px-3 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs transition-colors flex items-center shadow-sm">
+                    <button class="action-btn accept-btn px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs transition-colors flex items-center shadow-sm">
                         <i class="fas fa-check mr-1"></i>接受
                     </button>
                 </div>
             </div>
         `;
     });
-    
+        
     html += '</div>';
     return html;
 }
@@ -309,44 +314,25 @@ async function handleSync(btn, item, eventName, targetStatus) {
 
 // ============ 重置所有测试数据 ============
 function handleReset() {
-    // 1. 深度重置IDX事务数据
+    // === 修复 2：直接使用原始 mock 数据进行深度克隆，移除错误的状态覆盖循环 ===
     localIdxTransactions = JSON.parse(JSON.stringify(idxTransactions));
-    localIdxTransactions.forEach(tx => {
-        if (tx.status === 'accepted') {
-            tx.status = 'pending';
-        }
-        if (tx.details) {
-            tx.details.forEach(detail => {
-                if (detail.status === 'accepted') {
-                    detail.status = 'pending';
-                }
-            });
-        }
-    });
-
-    // 2. 深度重置批注数据
     localAnnotations = JSON.parse(JSON.stringify(presetAnnotations));
-    localAnnotations.forEach(annot => {
-        if (annot.status === 'resolved') {
-            annot.status = 'open';
-        }
-    });
 
-    // 3. 更新全局引用
+    // 更新全局引用
     window.sandboxData.idxTransactions = localIdxTransactions;
     window.sandboxData.annotations = localAnnotations;
 
-    // 4. 发射重置事件
+    // 发射重置事件给其他模块 (如 idx.manager.js)
     bus.emit('SANDBOX:RESET_ALL');
 
-    // 5. 刷新视口
+    // 刷新沙箱视口
     const viewport = document.querySelector('.panel-viewport');
     if (viewport) {
         viewport.innerHTML = renderViewportContent();
         bindViewportEvents(viewport);
     }
 
-    console.log('沙箱：已重置所有测试数据');
+    console.log('沙箱：已重置所有测试数据，页面已恢复初始状态');
 }
 
 // ============ 拖拽功能 ============

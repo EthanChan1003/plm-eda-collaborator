@@ -109,7 +109,7 @@ export function renderTreeContent() {
                     <i class="fas fa-microchip mr-2 text-blue-500"></i>核心 MCU
                 </div>
                 <div class="ml-4 space-y-1 mt-1">
-                    ${generateTreeItem('U1', 'STM32F103', 'microchip', true)}
+                    ${generateTreeItem('U1', 'STM32F103', 'microchip')}
                 </div>
             </div>
         `;
@@ -326,6 +326,7 @@ export function renderNotesContent() {
         const replyCount = note.replies ? note.replies.length : 0;
         const replyIndicator = replyCount > 0 ? `<span class="ml-2 text-[10px] text-blue-500 font-medium"><i class="fas fa-comment-dots"></i> ${replyCount} 回复</span>` : '';
         const refBadge = note.targetRef ? `<span class="ml-1 text-[9px] px-1 bg-blue-50 text-blue-600 border border-blue-100 rounded">${note.targetRef}</span>` : '';
+        const viewBadge = `<span class="ml-1 text-[9px] px-1 bg-gray-100 text-gray-500 border border-gray-200 rounded">${viewLabel}</span>`;
 
         notesHTML += `
             <div class="note-item p-3 rounded-lg cursor-pointer border border-gray-100 ${cardBgClass} hover:border-blue-300 transition-colors" data-note-id="${note.id}" data-note-version="${note.version}">
@@ -334,6 +335,7 @@ export function renderNotesContent() {
                         <span class="flex-shrink-0 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold mr-1.5">${note.id}</span>
                         <span class="font-bold text-gray-800 text-xs truncate max-w-[60px]" title="${safeAuthor}">${safeAuthor}</span>
                         ${refBadge}
+                        ${viewBadge}
                     </div>
                     <div class="flex items-center space-x-2 flex-shrink-0 ml-1">
                         <span class="text-[9px] text-gray-400">${shortTime}</span>
