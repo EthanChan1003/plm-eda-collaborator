@@ -57,7 +57,7 @@ export function initThreeEngine(container) {
 
     // 1. 初始化场景
     scene = new THREE.Scene();
-    scene.background = new THREE.Color('#1e293b');
+    scene.background = new THREE.Color('#f9fafb');
 
     // === 核心修复：确保容器被加入场景 ===
     scene.add(pcbLayers3D.top);
